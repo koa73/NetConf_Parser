@@ -7,13 +7,6 @@ from device_analyzer import PATTERNS_DIR, load_vendor_patterns, analyze_device_f
 
 CONFIG_DIR = "./data"
 
-def get_template_version(vendor: str, vendor_patterns: List[Dict]) -> str:
-    """Получает версию шаблона для указанного вендора."""
-    for pattern in vendor_patterns:
-        if pattern["vendor"] == vendor:
-            return pattern.get("version", "unknown")
-    return "unknown"
-
 def main():
     if not os.path.exists(CONFIG_DIR):
         print(f"⚠️  Создаю каталог для конфигов: {CONFIG_DIR}")
@@ -34,12 +27,6 @@ def main():
     if not vendor_patterns:
         print("❌ Не удалось загрузить ни одного шаблона. Завершение работы.")
         sys.exit(1)
-
-    # Вывод версий шаблонов
-    print("\nВерсии шаблонов:")
-    for pattern in vendor_patterns:
-        print(f"  {pattern['vendor']}: {pattern.get('version', 'unknown')}")
-    print()
 
     files = [f for f in os.listdir(CONFIG_DIR) if os.path.isfile(os.path.join(CONFIG_DIR, f))]
     if not files:
@@ -87,22 +74,11 @@ def main():
     print("-" * (sum(col_widths) + 2 * (len(col_widths) - 1)))
     for row in rows:
         print(format_row(row))
-    print("=" * (sum(col_widths) + 2 * (len(col_widths) - 1)))
-    
-    # Добавляем сводку
-    total_devices = len(results)
-    total_vlans = sum(r["total_vlans"] for r in results)
-    total_networks = sum(len(r["routing_networks"]) for r in results)
-    
-    print(f"\n📊 Сводка:")
-    print(f"   Всего устройств: {total_devices}")
-    print(f"   Всего VLAN: {total_vlans}")
-    print(f"   Всего сетей: {total_networks}")
-    print(f"   Детали в файле: network_details.txt\n")
+    print("=" * (sum(col_widths) + 2 * (len(col_widths) - 1)) + "\n")
 
     # Сохранение подробной информации в файл
     with open("network_details.txt", "w", encoding='utf-8') as f:
-        f.write(f"Анализ сетевого оборудования - {total_devices} устройств\n")
+        f.write(f"Анализ сетевого оборудования - {len(results)} устройств\n")
         f.write(f"Дата: {os.popen('date').read().strip()}\n")
         f.write("=" * 80 + "\n\n")
         
@@ -114,7 +90,7 @@ def main():
             f.write(f"Device Name: {r['device_name']}\n")
             f.write(f"Model: {r['model']}\n")
             f.write(f"Type: {r['device_type']}\n")
-            f.write(f"Template Version: {get_template_version(r['vendor'], vendor_patterns)}\n")
+            f.write(f"Template Version: {r.get('template_version', 'unknown')}\n")
             f.write(f"Total VLANs: {r['total_vlans']}\n")
             f.write(f"Active VLANs: {', '.join(str(vlan) for vlan in r['active_vlans']) if r['active_vlans'] else 'None'}\n")
             f.write(f"Routing Networks Count: {len(r['routing_networks'])}\n")

@@ -12,8 +12,10 @@
   "name_patterns": [
     {"pattern": "^set system host-name\\s+\"?([^\\s\"]+)\"?", "group": 1},
     {"pattern": "^host-name\\s+\"?([^\\s;}\"]+)\"?", "group": 1},
-    {"pattern": "^\\s*system\\s*\\{[^}]*host-name\\s+\"?([^\\s;\"]+)\"?", "group": 1, "multiline": true},
-    {"pattern": "^\\s*system\\s*\\{[^}]*host-name\\s+\"?([^\\s;\"]+)\"?;", "group": 1, "multiline": true}
+    {"pattern": "^\\s*system\\s+\\{[^}]*?host-name\\s+([^\";\\s]+)", "group": 1, "multiline": true},
+    {"pattern": "^\\s*system\\s+\\{[^}]*?host-name\\s+\"([^\"]+)\"", "group": 1, "multiline": true},
+    {"pattern": "^\\s*host-name\\s+([^\";\\s]+);", "group": 1},
+    {"pattern": "^\\s*host-name\\s+\"([^\"]+)\";", "group": 1}
   ],
   "model_patterns": [
     {"pattern": "^set version \\d[^\\s]*\\s+\\(\\s*(QFX\\d+-\\S+|EX\\d+-\\S+|MX\\d+-\\S+|PTX\\d+-\\S+|SRX\\d+-\\S+)\\s*\\)", "group": 1},

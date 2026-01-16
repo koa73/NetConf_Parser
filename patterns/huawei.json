@@ -12,13 +12,15 @@
     "interface [\\S]+"
   ],
   "name_patterns": [
-    {"pattern": "^sysname\\s+(\\S+)", "group": 1}
+    {"pattern": "^sysname\\s+(\\S+)", "group": 1},
+    {"pattern": "^\\s+sysname\\s+(\\S+)", "group": 1}
   ],
   "model_patterns": [
     {"pattern": "^\\s*#\\s*(CE\\d+-\\S+)", "group": 1},
     {"pattern": "^\\s*#\\s+(CE\\d+-\\S+)$", "group": 1},
     {"pattern": "^!Software Version V(\\d+)R(\\d+)C(\\d+):(\\S+)", "group": 4},
-    {"pattern": "^\\s*#\\s+(NE\\d+|CE\\d+|AR\\d+|S\\d+|USG\\d+|MA56\\d+|MA58\\d+)\\s", "group": 1}
+    {"pattern": "^\\s*#\\s+(NE\\d+|CE\\d+|AR\\d+|S\\d+|USG\\d+|MA56\\d+|MA58\\d+)\\s", "group": 1},
+    {"pattern": "^\\s*Device status:\\s+.*?\\n\\s*1\\s+-\\s+(\\S+)\\s+Present", "group": 1, "multiline": true}
   ],
   "type_inference": [
     {"any": ["ce6881", "ce8850", "ce6800"], "type": "carrier_switch", "score": 95},
