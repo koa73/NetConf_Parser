@@ -1,0 +1,37 @@
+{
+  "vendor": "F5",
+  "version": "1.1",
+  "vendor_signatures": [
+    "^#TMSH-VERSION:",
+    "^ltm virtual",
+    "^net vlan"
+  ],
+  "detect_patterns": [
+    "^sys global-settings",
+    "^net self",
+    "^ltm pool"
+  ],
+  "name_patterns": [
+    {"pattern": "^sys global-settings \\{\\s+hostname\\s+\"?([^\\s\"]+)\"?", "group": 1, "multiline": true}
+  ],
+  "model_patterns": [
+    {"pattern": "^# Platform:\\s+(\\S+)", "group": 1},
+    {"pattern": "^# Chassis Serial Number:\\s+(\\S+)", "group": 1},
+    {"pattern": "^sys hardware-info \\{[^}]*?platform\\s+\"(\\S+)\"", "group": 1, "multiline": true}
+  ],
+  "type_inference": [
+    {"any": ["ltm virtual", "ltm pool", "net self"], "type": "load_balancer", "score": 100}
+  ],
+  "default_device_type": "load_balancer",
+  "network_extraction_rules": {
+    "interfaces": {
+      "start": "^net self\\s+([^\\s]+)",
+      "ip_pattern": "address\\s+([\\d\\.\\/]+)",
+      "disable_pattern": "disabled\\s+yes"
+    },
+    "vlans": {
+      "all_pattern": "^net vlan\\s+([^\\s]+)",
+      "active_pattern": "^net vlan\\s+([^\\s]+)"
+    }
+  }
+}

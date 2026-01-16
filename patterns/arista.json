@@ -1,0 +1,39 @@
+{
+  "vendor": "Arista",
+  "version": "1.1",
+  "vendor_signatures": [
+    "^! Command: show running-config",
+    "^! device: [^\\s]+ \\(.*EOS.*\\)$",
+    "^boot system flash:"
+  ],
+  "detect_patterns": [
+    "^interface Ethernet",
+    "^vlan [0-9]+",
+    "^router bgp",
+    "^spanning-tree mode"
+  ],
+  "name_patterns": [
+    {"pattern": "^hostname\\s+(\\S+)", "group": 1}
+  ],
+  "model_patterns": [
+    {"pattern": "^! device:\\s+[^\\s]+\\s+\\(([^\\)]+)\\)", "group": 1},
+    {"pattern": "^! Model:\\s+(\\S+)", "group": 1},
+    {"pattern": "^boot system flash.*?(DCS-\\S+)", "group": 1}
+  ],
+  "type_inference": [
+    {"any": ["router bgp", "router ospf", "ip routing"], "type": "switch", "score": 80},
+    {"any": ["interface Vlan", "ip virtual-router"], "type": "switch", "score": 70}
+  ],
+  "default_device_type": "switch",
+  "network_extraction_rules": {
+    "interfaces": {
+      "start": "^interface\\s+(.+)",
+      "ip_pattern": "ip address\\s+(\\S+)\\s+(\\S+)",
+      "disable_pattern": "^\\s*shutdown"
+    },
+    "vlans": {
+      "all_pattern": "vlan\\s+(\\d+)",
+      "active_pattern": "interface Vlan(\\d+)"
+    }
+  }
+}

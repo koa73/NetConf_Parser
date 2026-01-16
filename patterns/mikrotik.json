@@ -1,0 +1,40 @@
+{
+  "vendor": "MikroTik",
+  "version": "1.1",
+  "vendor_signatures": [
+    "^/ip address",
+    "^/interface",
+    "^# software id"
+  ],
+  "detect_patterns": [
+    "^/system identity",
+    "^/ip route",
+    "^/interface bridge"
+  ],
+  "name_patterns": [
+    {"pattern": "^/system identity set name=([^\\s]+)", "group": 1},
+    {"pattern": "^/system identity\\s+name: ([^\\s]+)", "group": 1}
+  ],
+  "model_patterns": [
+    {"pattern": "^# model = (\\S+)", "group": 1},
+    {"pattern": "^# software id = .+ on (\\S+)", "group": 1},
+    {"pattern": "^/system resource\\s+board-name: ([^\\s]+)", "group": 1}
+  ],
+  "type_inference": [
+    {"any": ["/ip firewall", "/ip hotspot"], "type": "router", "score": 80},
+    {"any": ["/interface bridge", "/interface ethernet switch"], "type": "switch", "score": 70},
+    {"any": ["/ip hotspot"], "type": "wireless_controller", "score": 65}
+  ],
+  "default_device_type": "router_or_switch",
+  "network_extraction_rules": {
+    "interfaces": {
+      "start": "^/interface (?:ethernet|bridge|wireless) set \\.+name=([^\\s]+)",
+      "ip_pattern": "^/ip address add address=([\\d\\.\\/]+)",
+      "disable_pattern": "disabled=yes"
+    },
+    "vlans": {
+      "all_pattern": "^/interface vlan add name=([^\\s]+) vlan-id=(\\d+)",
+      "active_pattern": "^/interface vlan add name=([^\\s]+) vlan-id=(\\d+)"
+    }
+  }
+}
