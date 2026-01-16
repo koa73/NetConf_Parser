@@ -70,17 +70,17 @@ project/
 2. Создать виртуальную среду (опционально):
     ```bash
     python3 -m venv .venv
-    source .venv/bin/activate  # для Linux/Mac****
+    source .venv/bin/activate  # для Linux/Mac
     ### или .venv\Scripts\activate для Windows
 
 3. Поместите конфигурационные файлы в папку data/
     ```bash
-    mkdir configs**  
-    cp /path/to/your/configs/*.cfg data/**
+    mkdir data  
+    cp /path/to/your/configs/*.cfg data/
 
 4. Запустите анализ:
     ```bash
-    python3 main.py**
+    python3 main.py
 
 📝 Пример вывода:
 ```
