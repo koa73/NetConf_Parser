@@ -1,0 +1,43 @@
+{
+  "vendor": "Huawei",
+  "version": "1.1",
+  "vendor_signatures": [
+    "^!Software Version [HV]\\d+",
+    "^sysname\\s+",
+    "^!configuration console"
+  ],
+  "detect_patterns": [
+    "^sysname\\s+",
+    "^vlan batch",
+    "interface [\\S]+"
+  ],
+  "name_patterns": [
+    {"pattern": "^sysname\\s+(\\S+)", "group": 1}
+  ],
+  "model_patterns": [
+    {"pattern": "^\\s*#\\s*(CE\\d+-\\S+)", "group": 1},
+    {"pattern": "^\\s*#\\s+(CE\\d+-\\S+)$", "group": 1},
+    {"pattern": "^!Software Version V(\\d+)R(\\d+)C(\\d+):(\\S+)", "group": 4},
+    {"pattern": "^\\s*#\\s+(NE\\d+|CE\\d+|AR\\d+|S\\d+|USG\\d+|MA56\\d+|MA58\\d+)\\s", "group": 1}
+  ],
+  "type_inference": [
+    {"any": ["ce6881", "ce8850", "ce6800"], "type": "carrier_switch", "score": 95},
+    {"any": ["gpon", "ont", "dba-profile", "ont-lineprofile"], "type": "olt_device", "score": 90},
+    {"any": ["security-policy", "firewall enable", "hrp"], "type": "firewall", "score": 85},
+    {"any": ["mpls", "lpu", "chassis", "mpu", "sfu"], "type": "carrier_router", "score": 80},
+    {"any": ["s57", "s67", "s77", "s97"], "type": "enterprise_switch", "score": 75},
+    {"any": ["ar12", "ar22", "ar32"], "type": "enterprise_router", "score": 70}
+  ],
+  "default_device_type": "router_or_switch",
+  "network_extraction_rules": {
+    "interfaces": {
+      "start": "^interface\\s+(.+)",
+      "ip_pattern": "(?:ip|ipv6) address\\s+(\\S+)\\s+(\\S+)",
+      "disable_pattern": "^\\s*shutdown"
+    },
+    "vlans": {
+      "all_pattern": "(?:vlan|vlan batch)\\s+(\\d+)",
+      "active_pattern": "(?:port default vlan|port trunk allow-pass vlan)\\s+(\\d+)"
+    }
+  }
+}
