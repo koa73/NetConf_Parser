@@ -1,0 +1,10 @@
+{
+  "vendor": "Cisco",
+  "device_type": "switch",
+  "shape": "mxgraph.cisco.switches.catalyst_switch",
+  "style": "shape;html=1;pointerEvents=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;",
+  "width": 80,
+  "height": 50,
+  "default_label": "${device_name}\n${model}",
+  "icon": "https://jgraph.github.io/mxgraph/javascript/examples/grapheditor/resources/cisco/switch_2950.png"
+}
