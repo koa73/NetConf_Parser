@@ -1,9 +1,10 @@
-# main.py
+# main.py (обновленная версия с визуализацией)
 
 import os
 import sys
 from typing import List, Dict
 from device_analyzer import PATTERNS_DIR, load_vendor_patterns, analyze_device_file
+from vizualizer import generate_network_diagram  # Импортируем новый модуль
 
 CONFIG_DIR = "./data"
 
@@ -39,12 +40,11 @@ def main():
         info = analyze_device_file(full_path, vendor_patterns)
         results.append(info)
 
-    # Подготовка таблицы для вывода с улучшенным форматированием
+    # Подготовка таблицы для вывода
     headers = ["Файл", "Вендор", "Имя", "Модель", "Тип", "VLAN", "Сети"]
     rows = []
 
     for r in results:
-        # Улучшенное форматирование длинных имен файлов
         filename = r["filename"]
         if len(filename) > 35:
             filename = filename[:32] + "..."
@@ -90,7 +90,6 @@ def main():
             f.write(f"Device Name: {r['device_name']}\n")
             f.write(f"Model: {r['model']}\n")
             f.write(f"Type: {r['device_type']}\n")
-            f.write(f"Template Version: {r.get('template_version', 'unknown')}\n")
             f.write(f"Total VLANs: {r['total_vlans']}\n")
             f.write(f"Active VLANs: {', '.join(str(vlan) for vlan in r['active_vlans']) if r['active_vlans'] else 'None'}\n")
             f.write(f"Routing Networks Count: {len(r['routing_networks'])}\n")
@@ -107,7 +106,7 @@ def main():
             try:
                 with open(os.path.join(CONFIG_DIR, r['filename']), 'r', encoding='utf-8', errors='ignore') as config_file:
                     lines = config_file.readlines()
-                    for line in lines[:10]:  # Первые 10 строк конфигурации
+                    for line in lines[:10]:
                         f.write(f"  {line.rstrip()}\n")
             except Exception as e:
                 f.write(f"  ⚠️ Не удалось прочитать конфигурацию: {str(e)}\n")
@@ -115,6 +114,10 @@ def main():
             f.write("\n\n")
 
     print(f"✅ Детальная информация сохранена в файл: network_details.txt")
+    
+    # Генерация сетевой диаграммы
+    if results:
+        generate_network_diagram(results, "network_diagram.drawio")
 
 if __name__ == "__main__":
     main()
