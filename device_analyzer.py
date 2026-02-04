@@ -272,7 +272,6 @@ def detect_vendor_and_model(content: str, vendor_patterns: List[Dict]) -> Option
         **network_info
     }
 
-
 def analyze_device_file(filepath: str, vendor_patterns: List[Dict]) -> Dict[str, Any]:
     filename = os.path.basename(filepath)
     try:
@@ -348,8 +347,9 @@ def print_short_report(results):
         print(format_row(row))
     print("=" * (sum(col_widths) + 2 * (len(col_widths) - 1)) + "\n")
 
+def write_report_to_file(results, fname="network_details.txt", CON):
     # Сохранение подробной информации в файл
-    with open("network_details.txt", "w", encoding='utf-8') as f:
+    with open(fname, "w", encoding='utf-8') as f:
         f.write(f"Анализ сетевого оборудования - {len(results)} устройств\n")
         f.write(f"Дата: {os.popen('date').read().strip()}\n")
         f.write("=" * 80 + "\n\n")

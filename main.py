@@ -3,10 +3,13 @@
 import os
 import sys
 from typing import List, Dict
-from device_analyzer import PATTERNS_DIR, load_vendor_patterns, analyze_device_file, print_short_report
+from device_analyzer import PATTERNS_DIR, load_vendor_patterns, analyze_device_file, print_short_report, \
+    write_report_to_file
 from vizualizer import generate_network_diagram  # Импортируем новый модуль
 
 CONFIG_DIR = "./data"
+REPORT = "network_details.txt"
+DIAGRAM = "network_diagram.drawio"
 
 def main():
     if not os.path.exists(CONFIG_DIR):
@@ -42,10 +45,13 @@ def main():
 
     # Вывод краткой информации
     print_short_report(results)
+
+    # Запись данных в файл
+    write_report_to_file(results, REPORT, CONFIG_DIR)
     
     # Генерация сетевой диаграммы
-    if results:
-        generate_network_diagram(results, "network_diagram.drawio")
+    #if results:
+        #generate_network_diagram(results, DIAGRAM)
 
 if __name__ == "__main__":
     main()
