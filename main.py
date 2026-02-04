@@ -4,7 +4,7 @@ import os
 import sys
 from typing import List, Dict
 from device_analyzer import PATTERNS_DIR, load_vendor_patterns, analyze_device_file, print_short_report, \
-    write_report_to_file
+    write_report_to_file, analyze_network_topology, print_analysis_result
 from vizualizer import generate_network_diagram  # Импортируем новый модуль
 
 CONFIG_DIR = "./data"
@@ -43,15 +43,20 @@ def main():
         info = analyze_device_file(full_path, vendor_patterns)
         results.append(info)
 
+    links = analyze_network_topology(results)
+
+
     # Вывод краткой информации
     print_short_report(results)
+    print_analysis_result(links)
+
+    print_analysis_result(links)
 
     # Запись данных в файл
-    write_report_to_file(results, REPORT, CONFIG_DIR)
-    
+    write_report_to_file(results, REPORT, links, CONFIG_DIR)
+
     # Генерация сетевой диаграммы
     #if results:
         #generate_network_diagram(results, DIAGRAM)
-
 if __name__ == "__main__":
     main()
