@@ -45,11 +45,8 @@ def main():
 
     links = analyze_network_topology(results)
 
-
     # Вывод краткой информации
     print_short_report(results)
-    print_analysis_result(links)
-
     print_analysis_result(links)
 
     # Запись данных в файл

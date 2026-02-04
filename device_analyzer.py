@@ -408,9 +408,63 @@ def write_report_to_file(results, fname,  links_result, conf_dir ):
         f.write("=" * 150 + "\n")
         f.write(f"Всего обнаружено физических связей: {len(links)}\n")
 
-        f.write("\n\n")
+        f.write("\n")
 
-    print(f"✅ Детальная информация сохранена в файл: network_details.txt")
+        # Управленческие сети
+        mgmt = links_result.get("mgmt_networks", [])
+        f.write("\n" + "=" * 100 + "\n")
+        f.write(" 🖥️  УПРАВЛЕНЧЕСКИЕ ИНТЕРФЕЙСЫ (Management Networks)\n")
+        f.write("=" * 100 + "\n")
+        if mgmt:
+            f.write(f"{'Устройство':<25} | {'Интерфейс':<18} | {'IP адрес':<16} | {'Сеть':<20}\n")
+            f.write("-" * 100 + "\n")
+            for entry in mgmt:
+                dev, intf, ip, net = entry
+                f.write(f"{dev:<25} | {intf:<18} | {ip:<16} | {net:<20}\n")
+            f.write(f"\n✅ Всего управленческих интерфейсов: {len(mgmt)}\n")
+
+            # Группировка по сетям
+            networks = {}
+            for entry in mgmt:
+                net = entry[3]
+                networks.setdefault(net, []).append(f"{entry[0]} ({entry[2]})")
+
+            f.write("\nГруппировка по сетям управления:\n")
+            for net, devices in sorted(networks.items()):
+                f.write(f"  • {net}: {', '.join(devices)}")
+        else:
+            f.write("⚠️  Управленческие интерфейсы не обнаружены\n")
+
+        # Логические связи
+        logical = links_result.get("logical_links", [])
+        f.write("\n" + "=" * 130 + "\n")
+        f.write(" 🌐 ЛОГИЧЕСКИЕ СВЯЗИ (Logical Links: VXLAN Overlay, Service Networks)\n")
+        f.write("=" * 130 + "\n")
+        if logical:
+            f.write(
+                f"{'Устройство 1':<25} | {'Интерфейс/IP':<25} | {'Устройство 2':<25} | {'Интерфейс/IP':<25} | {'Тип связи':<35}\n")
+            f.write("-" * 130 +"\n")
+            for link in logical:
+                dev1, intf_ip1, dev2, intf_ip2, desc = link
+                f.write(f"{dev1:<25} | {intf_ip1:<25} | {dev2:<25} | {intf_ip2:<25} | {desc:<35}\n")
+            f.write(f"\n✅ Всего логических связей: {len(logical)}\n")
+
+            # Статистика по типам
+            vxlan_count = sum(1 for l in logical if 'VXLAN' in l[4])
+            service_count = sum(1 for l in logical if 'Service Network' in l[4])
+            p2p_count = sum(1 for l in logical if 'Logical P2P' in l[4])
+
+            f.write("\nСтатистика логических связей:\n")
+            if vxlan_count:
+                f.write(f"  • VXLAN Overlay (VNI): {vxlan_count}\n")
+            if service_count:
+                f.write(f"  • Сервисные сети (L3): {service_count}\n")
+            if p2p_count:
+                f.write(f"  • Логические P2P (/30): {p2p_count}\n")
+        else:
+            f.write("ℹ️  Логические связи не обнаружены (требуется дополнительная информация о конфигурации тоннелей)\n")
+
+    print(f"✅ Детальная информация сохранена в файл: network_details.txt\n")
 
 def netmask_to_prefix(netmask: str) -> int:
     """Преобразует маску из dotted-decimal в префикс."""
