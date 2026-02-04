@@ -347,7 +347,7 @@ def print_short_report(results):
         print(format_row(row))
     print("=" * (sum(col_widths) + 2 * (len(col_widths) - 1)) + "\n")
 
-def write_report_to_file(results, fname="network_details.txt", CON):
+def write_report_to_file(results, fname, conf_dir ):
     # Сохранение подробной информации в файл
     with open(fname, "w", encoding='utf-8') as f:
         f.write(f"Анализ сетевого оборудования - {len(results)} устройств\n")
@@ -377,7 +377,7 @@ def write_report_to_file(results, fname="network_details.txt", CON):
 
             f.write("\nConfiguration snippet:\n")
             try:
-                with open(os.path.join(CONFIG_DIR, r['filename']), 'r', encoding='utf-8',
+                with open(os.path.join(conf_dir, r['filename']), 'r', encoding='utf-8',
                           errors='ignore') as config_file:
                     lines = config_file.readlines()
                     for line in lines[:10]:
