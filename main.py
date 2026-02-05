@@ -4,7 +4,7 @@ import os
 import sys
 from lib.device_analyzer import load_vendor_patterns, analyze_device_file, print_short_report, \
     write_report_to_file, analyze_network_topology, print_analysis_result
-from lib.vizualizer import load_stencil_templates
+from lib.network_visualizer import NetworkVisualizer
 
 CONFIG_DIR = "./data"
 PATTERNS_DIR = "./patterns"
@@ -15,6 +15,11 @@ REPORT = "network_details.txt"
 DIAGRAM = "network_diagram.drawio"
 
 def main():
+
+    viz = NetworkVisualizer(
+        pattern_dir= DRAWIO_TEMPLATES, drawio_template= DRAWIO_TEMPLATES + "/base.drawio", drawio_stencil_templates=STENCIL_TEMPLATES
+    )
+
     if not os.path.exists(CONFIG_DIR):
         print(f"⚠️  Создаю каталог для конфигов: {CONFIG_DIR}")
         os.makedirs(CONFIG_DIR)
@@ -52,7 +57,7 @@ def main():
     # Генерация сетевой диаграммы
     if links:
         print(f"⚠️  Создаю диаграмму\n")
-        #load_stencil_templates()
-        #generate_network_diagram(results, DIAGRAM)
+        print(viz.load_stencil_templates(links))
+        #print(load_stencil_templates(STENCIL_TEMPLATES, links))
 if __name__ == "__main__":
     main()
