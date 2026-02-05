@@ -286,9 +286,7 @@ class NetworkVisualizer:
         total_loaded = sum(len(types) for types in templates.values())
         total_requested = len(unique_devices)
 
-        sys.stderr.write(f"\n📊 Статистика загрузки шаблонов:\n")
-        sys.stderr.write(f"   Запрошено уникальных комбинаций (вендор/тип): {total_requested}\n")
-        sys.stderr.write(f"   Успешно загружено шаблонов: {total_loaded}\n")
+        print(f"   Успешно загружено шаблонов: {total_loaded}\n")
 
         if missing_templates:
             sys.stderr.write(f"   ❌ Не найдены шаблоны для {len(missing_templates)} комбинаций:\n")
@@ -299,5 +297,4 @@ class NetworkVisualizer:
             sys.stderr.write(f"\n❌ КРИТИЧЕСКАЯ ОШИБКА: Не загружено ни одного шаблона!\n")
             sys.exit(1)
 
-        sys.stderr.write(f"✅ Загрузка шаблонов завершена успешно.\n\n")
         return templates
