@@ -244,56 +244,6 @@ class NetworkDevice:
 
         return result
 
-    def _analyze(self) -> bool:
-        """Выполняет полный анализ конфигурации устройства."""
-        if not self.load_content():
-            return False
-
-        # Этап 1: Определение вендора
-        vendor_scores = Counter()
-        for pattern in self.vendor_patterns:
-            vendor = pattern["vendor"]
-            signatures = pattern.get("vendor_signatures", [])
-            if signatures:
-                score = sum(
-                    any(re.search(sig, line, re.IGNORECASE) for line in self.content_lines)
-                    for sig in signatures
-                )
-                if score > 0:
-                    vendor_scores[vendor] = score
-
-        if not vendor_scores:
-            for pattern in self.vendor_patterns:
-                if self._match_patterns(pattern.get("detect_patterns", [])):
-                    vendor_scores[pattern["vendor"]] = 1
-                    break
-
-        if not vendor_scores:
-            return False
-
-        self.vendor = vendor_scores.most_common(1)[0][0]
-        pattern = next(p for p in self.vendor_patterns if p["vendor"] == self.vendor)
-
-        # Этап 2: Извлечение данных
-        self.device_name = self._extract_with_pattern(pattern.get("name_patterns", []))
-        self.model = self._extract_model_with_fallback(pattern.get("model_patterns", []), self.vendor)
-
-        # Этап 3: Определение типа
-        if "type_inference" in pattern:
-            self.device_type = self._infer_type_by_features(pattern["type_inference"])
-        if self.device_type == "unknown":
-            self.device_type = pattern.get("default_device_type", "unknown")
-
-        # Этап 4: Извлечение сетей и VLAN
-        rules = pattern.get("network_extraction_rules", {})
-        network_info = self._extract_networks_and_vlans(rules)
-        self.routing_networks = network_info["routing_networks"]
-        self.total_vlans = network_info["total_vlans"]
-        self.active_vlans = network_info["active_vlans"]
-        self.all_vlans = network_info["all_vlans"]
-
-        return True
-
     def analyze(self) -> bool:
         """Выполняет полный анализ конфигурации устройства."""
         if not self.load_content():
@@ -319,14 +269,6 @@ class NetworkDevice:
                     break
 
         if not vendor_scores:
-            sys.stderr.write(
-                f"⚠️  Вендор не определён для файла '{self.filename}': "
-                f"конфигурация не совпадает ни с одним шаблоном распознавания.\n"
-                f"    Рекомендации:\n"
-                f"      • Проверьте корректность конфигурационного файла\n"
-                f"      • Добавьте шаблон для данного вендора в каталог {self.vendor_patterns[0].get('_source_file', 'patterns/devices')}\n"
-                f"      • Убедитесь, что файл содержит сигнатуры вендора (команды, заголовки, специфичные ключевые слова)\n"
-            )
             return False
 
         self.vendor = vendor_scores.most_common(1)[0][0]
