@@ -1,9 +1,5 @@
-# main.py (обновленная версия с визуализацией)
-
 import os
-import sys
-from lib.device_analyzer import load_vendor_patterns, analyze_device_file, print_short_report, \
-    write_report_to_file, analyze_network_topology, print_analysis_result
+from lib.device_analyzer import *
 from lib.network_visualizer import NetworkVisualizer
 
 CONFIG_DIR = "./data"
@@ -14,50 +10,49 @@ STENCIL_TEMPLATES = os.path.join(DRAWIO_TEMPLATES, "templates")
 REPORT = "network_details.txt"
 DIAGRAM = "network_diagram.drawio"
 
+
 def main():
+    # Инициализация загрузчика шаблонов
+    pattern_loader = VendorPatternLoader(PATTERNS_DIR_DEV)
+    vendor_patterns = pattern_loader.load_patterns()
 
-    viz = NetworkVisualizer(
-        pattern_dir= DRAWIO_TEMPLATES, drawio_template= DRAWIO_TEMPLATES + "/base.drawio", drawio_stencil_templates=STENCIL_TEMPLATES
-    )
-
+    # Анализ устройств
     if not os.path.exists(CONFIG_DIR):
-        print(f"⚠️  Создаю каталог для конфигов: {CONFIG_DIR}")
-        os.makedirs(CONFIG_DIR)
-    
-    try:
-        vendor_patterns = load_vendor_patterns(PATTERNS_DIR_DEV)
-    except FileNotFoundError as e:
-        print(e)
+        print(f"⚠️  Каталог конфигураций не найден: {CONFIG_DIR}")
         sys.exit(1)
 
-    if not vendor_patterns:
-        print("❌ Не удалось загрузить ни одного шаблона. Завершение работы.")
+    config_files = [f for f in os.listdir(CONFIG_DIR) if os.path.isfile(os.path.join(CONFIG_DIR, f))]
+
+    if not config_files:
+        sys.stderr.write(f"📂 В каталоге '{CONFIG_DIR}' нет файлов для анализа.\n")
         sys.exit(1)
 
-    files = [f for f in os.listdir(CONFIG_DIR) if os.path.isfile(os.path.join(CONFIG_DIR, f))]
-    if not files:
-        print(f"📂 В каталоге '{CONFIG_DIR}' нет файлов для анализа.")
-        return
+    devices = []
+    for config_file in config_files:
+        filepath = os.path.join(CONFIG_DIR, config_file)
+        device = NetworkDevice(filepath, vendor_patterns)
+        if device.analyze():
+            devices.append(device.to_dict())
 
-    results = []
-    for fname in files:
-        full_path = os.path.join(CONFIG_DIR, fname)
-        info = analyze_device_file(full_path, vendor_patterns)
-        results.append(info)
+    # Анализ топологии
+    topology_analyzer = NetworkTopologyAnalyzer()
+    links_result = topology_analyzer.analyze_topology(devices)
 
-    links = analyze_network_topology(results)
-
-    # Вывод краткой информации
-    print_short_report(results)
-    print_analysis_result(links)
-
-    # Запись данных в файл
-    write_report_to_file(results, REPORT, links, CONFIG_DIR)
+    # Генерация отчётов
+    ReportGenerator.print_short_report(devices)
+    ReportGenerator.print_topology_analysis(links_result)
+    ReportGenerator.write_detailed_report(devices, REPORT, links_result, CONFIG_DIR)
 
     # Генерация сетевой диаграммы
-    if links:
+    viz = NetworkVisualizer(
+        pattern_dir=DRAWIO_TEMPLATES, drawio_template=DRAWIO_TEMPLATES + "/base.drawio",
+        drawio_stencil_templates=STENCIL_TEMPLATES
+    )
+    if links_result:
         print(f"⚠️  Создаю диаграмму\n")
-        print(viz.load_stencil_templates(links))
-        #print(load_stencil_templates(STENCIL_TEMPLATES, links))
+        print(viz.load_stencil_templates(links_result))
+        # print(load_stencil_templates(STENCIL_TEMPLATES, links))
+
+
 if __name__ == "__main__":
     main()
