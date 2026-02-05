@@ -7,7 +7,7 @@ from typing import Dict, List, Any, Tuple
 from collections import defaultdict
 import math
 
-PRESENTATION_DIR = "./presentation"
+PRESENTATION_DIR = "../presentation"
 TEMPLATES_DIR = os.path.join(PRESENTATION_DIR, "templates")
 
 def load_drawio_template() -> str:

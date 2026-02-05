@@ -2,12 +2,11 @@
 
 import os
 import sys
-from typing import List, Dict
-from device_analyzer import PATTERNS_DIR, load_vendor_patterns, analyze_device_file, print_short_report, \
+from lib.device_analyzer import load_vendor_patterns, analyze_device_file, print_short_report, \
     write_report_to_file, analyze_network_topology, print_analysis_result
-from vizualizer import generate_network_diagram  # Импортируем новый модуль
 
 CONFIG_DIR = "./data"
+PATTERNS_DIR = "./patterns"
 REPORT = "network_details.txt"
 DIAGRAM = "network_diagram.drawio"
 
@@ -23,7 +22,7 @@ def main():
         sys.exit(1)
     
     try:
-        vendor_patterns = load_vendor_patterns()
+        vendor_patterns = load_vendor_patterns(PATTERNS_DIR)
     except FileNotFoundError as e:
         print(e)
         sys.exit(1)
@@ -53,7 +52,8 @@ def main():
     write_report_to_file(results, REPORT, links, CONFIG_DIR)
 
     # Генерация сетевой диаграммы
-    #if results:
+    if links:
+        print(f"⚠️  Создаю диаграмму")
         #generate_network_diagram(results, DIAGRAM)
 if __name__ == "__main__":
     main()

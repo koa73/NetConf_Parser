@@ -7,18 +7,18 @@ from typing import List, Dict, Any, Tuple, Set, Optional
 import ipaddress
 from collections import Counter
 
-PATTERNS_DIR = "./patterns"
 
-def load_vendor_patterns() -> List[Dict[str, Any]]:
-    if not os.path.isdir(PATTERNS_DIR):
-        raise FileNotFoundError(f"Каталог шаблонов не найден: {PATTERNS_DIR}")
+
+def load_vendor_patterns(patterns_dir) -> List[Dict[str, Any]]:
+    if not os.path.isdir(patterns_dir):
+        raise FileNotFoundError(f"Каталог шаблонов не найден: {patterns_dir}")
     
     patterns = []
-    for fname in os.listdir(PATTERNS_DIR):
+    for fname in os.listdir(patterns_dir):
         if not fname.endswith(".json"):
             continue
             
-        path = os.path.join(PATTERNS_DIR, fname)
+        path = os.path.join(patterns_dir, fname)
         try:
             with open(path, 'r', encoding='utf-8-sig') as f:
                 pattern = json.load(f)
