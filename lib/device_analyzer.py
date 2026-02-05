@@ -834,4 +834,4 @@ class ReportGenerator:
 
             f.write(f"\n✅ Детальная информация сохранена в файл: {output_file}\n")
 
-        print(f"✅ Детальная информация сохранена в файл: {output_file}\n\n")
+        print(f"✅ Детальная информация сохранена в файл: \033[32m{output_file}\033[0m\n\n")
