@@ -401,7 +401,7 @@ def write_report_to_file(results, fname,  links_result, conf_dir ):
         f.write("=" * 150 + "\n")
 
         for link in links:
-            dev1, intf1, ip1, dev2, intf2, ip2, net = link
+            dev1, vendor1, type1, intf1, ip1, dev2, vendor2, type2, intf2, ip2, net = link
             f.write(f"{dev1:<25} | {intf1:<18} | {ip1:<16} | "
                   f"{dev2:<25} | {intf2:<18} | {ip2:<16} | {net:<20}" + "\n")
 
@@ -578,8 +578,8 @@ def extract_device_interfaces(device: Dict[str, Any],
 
     return interfaces
 
-
-def find_physical_links(devices_data: List[Dict[str, Any]]) -> List[List[str]]:
+#########
+def _find_physical_links(devices_data: List[Dict[str, Any]]) -> List[List[str]]:
     """Выявляет физические P2P связи через /31 и /30 сети."""
     # Собираем физические интерфейсы
     device_interfaces: Dict[str, List[Dict[str, Any]]] = {}
@@ -615,6 +615,69 @@ def find_physical_links(devices_data: List[Dict[str, Any]]) -> List[List[str]]:
             intf1['interface'],
             intf1['ip'],
             dev2_name,
+            intf2['interface'],
+            intf2['ip'],
+            network_cidr
+        ])
+
+    return links
+
+
+def find_physical_links(devices_data: List[Dict[str, Any]]) -> List[List[Any]]:
+    """Выявляет физические P2P связи через /31 и /30 сети с указанием вендора и типа устройств."""
+    # Создаём маппинг имени устройства → его атрибуты (для быстрого доступа к vendor/device_type)
+    device_metadata: Dict[str, Dict[str, str]] = {
+        device['device_name']: {
+            'vendor': device['vendor'],
+            'device_type': device['device_type']
+        }
+        for device in devices_data
+    }
+
+    # Собираем физические интерфейсы
+    device_interfaces: Dict[str, List[Dict[str, Any]]] = {}
+    for device in devices_data:
+        device_name = device['device_name']
+        device_interfaces[device_name] = extract_device_interfaces(device, filter_type='physical')
+
+    # Индексируем сети
+    network_index: Dict[str, List[Tuple[str, Dict[str, Any]]]] = {}
+    for device_name, interfaces in device_interfaces.items():
+        for intf in interfaces:
+            net = intf['network_cidr']
+            network_index.setdefault(net, []).append((device_name, intf))
+
+    # Формируем связи (только сети с ровно 2 устройствами)
+    links = []
+    processed_pairs: Set[Tuple[str, str, str]] = set()
+
+    for network_cidr, endpoints in network_index.items():
+        if len(endpoints) != 2:
+            continue
+
+        dev1_name, intf1 = endpoints[0]
+        dev2_name, intf2 = endpoints[1]
+
+        pair_key = tuple(sorted([dev1_name, dev2_name]) + [network_cidr])
+        if pair_key in processed_pairs:
+            continue
+
+        processed_pairs.add(pair_key)
+
+        # Получаем метаданные устройств
+        dev1_meta = device_metadata.get(dev1_name, {'vendor': 'N/A', 'device_type': 'N/A'})
+        dev2_meta = device_metadata.get(dev2_name, {'vendor': 'N/A', 'device_type': 'N/A'})
+
+        # Расширенная структура связи: [устройство1, вендор1, тип1, интерфейс1, IP1, ..., сеть]
+        links.append([
+            dev1_name,
+            dev1_meta['vendor'],
+            dev1_meta['device_type'],
+            intf1['interface'],
+            intf1['ip'],
+            dev2_name,
+            dev2_meta['vendor'],
+            dev2_meta['device_type'],
             intf2['interface'],
             intf2['ip'],
             network_cidr
@@ -797,7 +860,7 @@ def print_analysis_result(result: Dict[str, List[List[str]]]) -> None:
               f"{'Устройство 2':<25} | {'Интерфейс':<18} | {'IP':<16} | {'Сеть':<20}")
         print("-" * 150)
         for link in links:
-            dev1, intf1, ip1, dev2, intf2, ip2, net = link
+            dev1, vendor1, type1, intf1, ip1, dev2, vendor2, type2, intf2, ip2, net = link
             print(f"{dev1:<25} | {intf1:<18} | {ip1:<16} | "
                   f"{dev2:<25} | {intf2:<18} | {ip2:<16} | {net:<20}")
         print(f"\n✅ Всего физических связей: {len(links)}")

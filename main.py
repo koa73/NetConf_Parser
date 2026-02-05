@@ -53,7 +53,9 @@ def main():
 
     # Генерация сетевой диаграммы
     if links:
-        print(f"⚠️  Создаю диаграмму")
+        print(f"⚠️  Создаю диаграмму\n")
+        print(links)
+        print(results)
         #generate_network_diagram(results, DIAGRAM)
 if __name__ == "__main__":
     main()

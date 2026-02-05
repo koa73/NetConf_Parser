@@ -2,17 +2,69 @@
 
 import os
 import json
-import xml.etree.ElementTree as ET
-from typing import Dict, List, Any, Tuple
-from collections import defaultdict
 import math
+import yaml
+from pathlib import Path
+from typing import Dict, List, Any
 
 PRESENTATION_DIR = "../presentation"
 TEMPLATES_DIR = os.path.join(PRESENTATION_DIR, "templates")
+DRAWIO_TEMPLATE = "drawio_template.xml"
+
+
+def read_yaml_file(filepath: str) -> Dict[str, Any]:
+    """
+    Считывает YAML-файл и возвращает его содержимое в виде словаря.
+
+    Args:
+        filepath (str): Путь к YAML-файлу (абсолютный или относительный).
+
+    Returns:
+        Dict[str, Any]: Содержимое YAML-файла в виде словаря.
+    """
+
+    path = Path(filepath).resolve()
+
+    # Проверка существования файла
+    if not path.exists():
+        raise FileNotFoundError(f"Файл не найден: {path}")
+
+    # Проверка прав на чтение
+    if not os.access(path, os.R_OK):
+        raise PermissionError(f"Нет прав на чтение файла: {path}")
+
+    # Проверка расширения (опционально)
+    if path.suffix.lower() not in ('.yaml', '.yml'):
+        raise ValueError(f"Ожидается файл с расширением .yaml или .yml, получено: {path.suffix}")
+
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+
+            if not content:
+                raise ValueError(f"Файл пустой: {path}")
+
+            data = yaml.safe_load(content)
+
+            if data is None:
+                raise ValueError(f"Файл не содержит данных или состоит только из комментариев: {path}")
+
+            if not isinstance(data, dict):
+                raise TypeError(f"Содержимое YAML должно быть словарём (dict), получено: {type(data).__name__}")
+
+            return data
+
+    except yaml.YAMLError as e:
+        raise yaml.YAMLError(f"Ошибка синтаксиса YAML в файле {path}:\n{str(e)}") from e
+    except UnicodeDecodeError as e:
+        raise UnicodeDecodeError(
+            "utf-8", b"", 0, 1,
+            f"Ошибка декодирования UTF-8 в файле {path}. Убедитесь, что файл сохранён в кодировке UTF-8."
+        ) from e
 
 def load_drawio_template() -> str:
     """Загружает шаблон XML для draw.io из файла"""
-    template_path = os.path.join(PRESENTATION_DIR, "drawio_template.xml")
+    template_path = os.path.join(PRESENTATION_DIR, DRAWIO_TEMPLATE )
     
     if not os.path.exists(template_path):
         raise FileNotFoundError(
@@ -25,7 +77,6 @@ def load_drawio_template() -> str:
             return f.read().strip()
     except Exception as e:
         raise Exception(f"❌ Ошибка чтения шаблона draw.io: {str(e)}")
-
 
 def load_presentation_templates() -> Dict[str, Dict]:
     """Загружает шаблоны визуализации из каталога presentation/templates/"""
