@@ -3,15 +3,17 @@
 import os
 import re
 import json
+import sys
 from typing import List, Dict, Any, Tuple, Set, Optional
 import ipaddress
 from collections import Counter
 
 
-
 def load_vendor_patterns(patterns_dir) -> List[Dict[str, Any]]:
-    if not os.path.isdir(patterns_dir):
-        raise FileNotFoundError(f"Каталог шаблонов не найден: {patterns_dir}")
+
+    if not os.path.exists(patterns_dir):
+        print(f"⚠️  Каталог шаблонов не найден: {patterns_dir}")
+        sys.exit(1)
     
     patterns = []
     for fname in os.listdir(patterns_dir):

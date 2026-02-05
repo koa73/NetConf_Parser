@@ -4,9 +4,13 @@ import os
 import sys
 from lib.device_analyzer import load_vendor_patterns, analyze_device_file, print_short_report, \
     write_report_to_file, analyze_network_topology, print_analysis_result
+from lib.vizualizer import load_stencil_templates
 
 CONFIG_DIR = "./data"
 PATTERNS_DIR = "./patterns"
+PATTERNS_DIR_DEV = os.path.join(PATTERNS_DIR, "devices")
+DRAWIO_TEMPLATES = os.path.join(PATTERNS_DIR, "drawio")
+STENCIL_TEMPLATES = os.path.join(DRAWIO_TEMPLATES, "templates")
 REPORT = "network_details.txt"
 DIAGRAM = "network_diagram.drawio"
 
@@ -14,15 +18,9 @@ def main():
     if not os.path.exists(CONFIG_DIR):
         print(f"⚠️  Создаю каталог для конфигов: {CONFIG_DIR}")
         os.makedirs(CONFIG_DIR)
-        
-    if not os.path.exists(PATTERNS_DIR):
-        print(f"⚠️  Создаю каталог для шаблонов: {PATTERNS_DIR}")
-        os.makedirs(PATTERNS_DIR)
-        print("❗ Поместите шаблоны вендоров в каталог patterns/ и запустите скрипт снова")
-        sys.exit(1)
     
     try:
-        vendor_patterns = load_vendor_patterns(PATTERNS_DIR)
+        vendor_patterns = load_vendor_patterns(PATTERNS_DIR_DEV)
     except FileNotFoundError as e:
         print(e)
         sys.exit(1)
@@ -54,6 +52,7 @@ def main():
     # Генерация сетевой диаграммы
     if links:
         print(f"⚠️  Создаю диаграмму\n")
+        #load_stencil_templates()
         #generate_network_diagram(results, DIAGRAM)
 if __name__ == "__main__":
     main()

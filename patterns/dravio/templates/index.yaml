@@ -1,0 +1,33 @@
+templates:
+  Arista:
+    - switch: switch.yaml
+  Aruba:
+    - switch: switch.yaml
+    - wireless_controller: default.yaml
+  Cisco:
+    - switch: switch.yaml
+    - firewall: firewall.yaml
+    - router: router.yaml
+  Dell:
+    - switch: switch.yaml
+  F5:
+    - load_balancer: default.yaml
+  Fortinet:
+    - firewall: firewall.yaml
+  Huawei:
+    - carrier_switch: switch.yaml
+    - olt_device: default.yaml
+    - firewall: firewall.yaml
+    - carrier_router: router.yaml
+    - enterprise_switch: switch.yaml
+    - enterprise_router: router.yaml
+  Juniper:
+    - switch: switch.yaml
+    - firewall: firewall.yaml
+    - router: router.yaml
+  MikroTik:
+    - router: router.yaml
+    - switch: switch.yaml
+    - wireless_controller: default.yaml
+  Palo_Alto:
+    - firewall: firewall.yaml

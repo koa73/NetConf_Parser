@@ -1,11 +1,10 @@
 # visualizer.py
 
 import os
-import json
-import math
+import sys
 import yaml
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, Any, Set, Tuple
 
 PRESENTATION_DIR = "../presentation"
 TEMPLATES_DIR = os.path.join(PRESENTATION_DIR, "templates")
@@ -78,257 +77,157 @@ def load_drawio_template() -> str:
     except Exception as e:
         raise Exception(f"❌ Ошибка чтения шаблона draw.io: {str(e)}")
 
-def load_presentation_templates() -> Dict[str, Dict]:
-    """Загружает шаблоны визуализации из каталога presentation/templates/"""
-    templates = {}
-    
-    if not os.path.exists(TEMPLATES_DIR):
-        raise FileNotFoundError(
-            f"❌ Каталог с шаблонами визуализации не найден: {TEMPLATES_DIR}\n"
-            f"💡 Создайте каталог и поместите в него файлы шаблонов:"
-            f"\n   mkdir -p {TEMPLATES_DIR}"
-            f"\n   # Затем создайте файлы шаблонов в этом каталоге"
-        )
-    
-    for fname in os.listdir(TEMPLATES_DIR):
-        if not fname.endswith(".json"):
-            continue
-        
-        path = os.path.join(TEMPLATES_DIR, fname)
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                template = json.load(f)
-                key = f"{template['vendor'].lower()}_{template['device_type'].lower()}"
-                templates[key] = template
-                print(f"🎨 Загружен шаблон визуализации: {fname}")
-        except Exception as e:
-            print(f"❌ Ошибка загрузки шаблона {fname}: {str(e)}")
-    
-    if not templates:
-        raise Exception(
-            f"❌ Не найдено ни одного шаблона визуализации в каталоге: {TEMPLATES_DIR}\n"
-            f"💡 Пожалуйста, создайте хотя бы один файл шаблона (например, default.json)"
-        )
-    
-    return templates
+def load_stencil_templates(stencil_dir: str, links: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
+    """
+    Загружает шаблоны изображений устройств (stencils) для визуализации сетевой диаграммы.
 
+    Анализирует физические связи, извлекает уникальные пары (вендор, тип устройства)
+    и загружает соответствующие шаблоны из каталога на основе индекса index.yaml.
 
-def extract_networks_from_device(device_info: Dict) -> List[Dict]:
-    """Извлекает сети из конфигурации устройства для построения связей"""
-    networks = []
-    
-    for net in device_info.get("routing_networks", []):
-        if "interface" in net and "network" in net:
-            interface = net["interface"]
-            network = net["network"]
-            
-            # Извлекаем IP и маску
-            parts = network.split('/')
-            if len(parts) == 2:
-                ip = parts[0]
-                mask = parts[1]
-                try:
-                    prefix = int(mask)
-                    networks.append({
-                        "interface": interface,
-                        "ip": ip,
-                        "prefix": prefix,
-                        "full_network": network
-                    })
-                except ValueError:
-                    pass
-    
-    return networks
+    Args:
+        stencil_dir (str): Путь к каталогу с шаблонами (stencil templates).
+        links (Dict[str, Any]): Словарь связей, должен содержать ключ 'physical_links'.
 
-
-def find_connections(devices: List[Dict]) -> List[Dict]:
-    """Находит связи между устройствами на основе общих сетей"""
-    connections = []
-    device_networks = {}
-    
-    # Собираем сети для каждого устройства
-    for device in devices:
-        networks = extract_networks_from_device(device)
-        if networks:
-            device_networks[device["filename"]] = {
-                "device": device,
-                "networks": networks
+    Returns:
+        Dict[str, Dict[str, str]]: Вложенный словарь шаблонов вида:
+            {
+                'cisco': {
+                    'router': '<mxgraph...>...</mxgraph>',
+                    'switch': '<mxgraph...>...</mxgraph>'
+                },
+                'huawei': {
+                    'switch': '<mxgraph...>...</mxgraph>'
+                },
+                ...
             }
-    
-    # Находим общие сети
-    checked_pairs = set()
-    device_list = list(device_networks.keys())
-    
-    for i in range(len(device_list)):
-        for j in range(i + 1, len(device_list)):
-            dev1_name = device_list[i]
-            dev2_name = device_list[j]
-            
-            if (dev1_name, dev2_name) in checked_pairs:
-                continue
-            
-            checked_pairs.add((dev1_name, dev2_name))
-            
-            dev1 = device_networks[dev1_name]
-            dev2 = device_networks[dev2_name]
-            
-            # Поиск общих сетей
-            for net1 in dev1["networks"]:
-                for net2 in dev2["networks"]:
-                    # Простая проверка на принадлежность к одной сети
-                    if net1["full_network"] == net2["full_network"]:
-                        connections.append({
-                            "source": dev1["device"]["filename"],
-                            "target": dev2["device"]["filename"],
-                            "source_interface": net1["interface"],
-                            "target_interface": net2["interface"],
-                            "network": net1["full_network"]
-                        })
-    
-    return connections
 
+    Программа завершается с кодом 1 при любой ошибке.
+    """
+    stencil_path = Path(stencil_dir).resolve()
 
-def generate_drawio_xml(devices: List[Dict], connections: List[Dict], templates: Dict) -> str:
-    """Генерирует XML для draw.io на основе устройств и связей"""
-    drawio_template = load_drawio_template()
+    # === Шаг 1: Проверка существования каталога шаблонов ===
+    if not stencil_path.exists():
+        sys.stderr.write(f"❌ ОШИБКА: Каталог шаблонов не найден: {stencil_path}\n")
+        sys.exit(1)
 
-    mx_cells = []
-    cell_id = 2  # Начинаем с 2, так как 0 и 1 зарезервированы
+    if not stencil_path.is_dir():
+        sys.stderr.write(f"❌ ОШИБКА: Указанный путь не является каталогом: {stencil_path}\n")
+        sys.exit(1)
 
-    # Создаем узлы для устройств
-    device_positions = {}
-    device_cells = {}
+    # === Шаг 2: Загрузка индекса шаблонов ===
+    index_file = stencil_path / "index.yaml"
+    if not index_file.exists():
+        sys.stderr.write(f"❌ ОШИБКА: Файл индекса не найден: {index_file}\n")
+        sys.exit(1)
 
-    # Рассчитываем позиции устройств по кругу
-    center_x, center_y = 600, 400
-    radius = 300
-    angle_step = 360 / max(1, len(devices))
+    try:
+        index_data = read_yaml_file(str(index_file))
+    except Exception as e:
+        # read_yaml_file уже завершает программу при ошибке, но на случай импорта:
+        sys.stderr.write(f"❌ ОШИБКА: Не удалось загрузить индекс шаблонов {index_file}:\n{e}\n")
+        sys.exit(1)
 
-    for i, device in enumerate(devices):
-        # Определяем шаблон для устройства
-        key = determine_device_key(device)
-        template = templates.get(key)
+    # Валидация структуры индекса
+    if 'templates' not in index_data:
+        sys.stderr.write(f"❌ ОШИБКА: В файле {index_file} отсутствует ключ 'templates'\n")
+        sys.exit(1)
 
-        # Если нет конкретного шаблона, используем дефолтный
-        if not template:
-            template = templates.get("default_default")
+    templates_index = index_data['templates']
+    if not isinstance(templates_index, dict):
+        sys.stderr.write(
+            f"❌ ОШИБКА: Ключ 'templates' должен быть словарём, получено: {type(templates_index).__name__}\n")
+        sys.exit(1)
 
-        if not template:
-            raise Exception(f"❌ Не найден шаблон для устройства {device['filename']} (ключ: {key})")
+    # === Шаг 3: Извлечение уникальных пар (вендор, тип) из физических связей ===
+    physical_links = links.get('physical_links', [])
 
-        # Рассчитываем позицию по кругу
-        angle = math.radians(i * angle_step)
-        x = center_x + radius * math.cos(angle) - template["width"] / 2
-        y = center_y + radius * math.sin(angle) - template["height"] / 2
+    if not isinstance(physical_links, list):
+        sys.stderr.write(f"❌ ОШИБКА: 'physical_links' должен быть списком, получено: {type(physical_links).__name__}\n")
+        sys.exit(1)
 
-        # Формируем метку с заменой переменных
-        label = template["default_label"]
-        label = label.replace("${device_name}", device["device_name"])
-        label = label.replace("${model}", device["model"])
-        label = label.replace("${vendor}", device["vendor"])
+    unique_devices: Set[Tuple[str, str]] = set()
 
-        # Создаем XML-элемент для устройства
-        style = template["style"]
-        shape = template["shape"]
+    for link in physical_links:
+        # Ожидаемая структура после модификации find_physical_links:
+        # [dev1, vendor1, type1, intf1, ip1, dev2, vendor2, type2, intf2, ip2, net]
+        if len(link) < 11:
+            sys.stderr.write(
+                f"❌ ОШИБКА: Некорректная структура связи (ожидается 11+ элементов, получено {len(link)}):\n{link}\n"
+            )
+            sys.exit(1)
 
-        cell = f"""
-        <mxCell id="{cell_id}" value="{label}" style="{style}shape={shape};" parent="1" vertex="1">
-          <mxGeometry x="{x}" y="{y}" width="{template['width']}" height="{template['height']}" as="geometry"/>
-        </mxCell>"""
+        # Устройство 1
+        vendor1 = link[1].lower() if isinstance(link[1], str) else str(link[1]).lower()
+        type1 = link[2].lower() if isinstance(link[2], str) else str(link[2]).lower()
+        unique_devices.add((vendor1, type1))
 
-        mx_cells.append(cell)
-        device_positions[device["filename"]] = (x, y, template["width"], template["height"])
-        device_cells[device["filename"]] = cell_id
-        cell_id += 1
+        # Устройство 2
+        vendor2 = link[6].lower() if isinstance(link[6], str) else str(link[6]).lower()
+        type2 = link[7].lower() if isinstance(link[7], str) else str(link[7]).lower()
+        unique_devices.add((vendor2, type2))
 
-    # Создаем соединения между устройствами
-    for conn in connections:
-        source_id = device_cells.get(conn["source"])
-        target_id = device_cells.get(conn["target"])
+    if not unique_devices:
+        sys.stderr.write(
+            "⚠️  ВНИМАНИЕ: Не обнаружено уникальных устройств в физических связях. Возврат пустого словаря шаблонов.\n")
+        return {}
 
-        if source_id and target_id:
-            # Рассчитываем точки соединения
-            src_x, src_y, src_w, src_h = device_positions[conn["source"]]
-            tgt_x, tgt_y, tgt_w, tgt_h = device_positions[conn["target"]]
+    # === Шаг 4: Загрузка шаблонов для каждой уникальной пары (вендор, тип) ===
+    templates: Dict[str, Dict[str, str]] = {}
 
-            # Определяем точки соединения на границах устройств
-            src_point = (src_x + src_w/2, src_y + src_h/2)
-            tgt_point = (tgt_x + tgt_w/2, tgt_y + tgt_h/2)
+    for vendor, device_type in sorted(unique_devices):
+        # Поиск шаблона в индексе
+        vendor_templates = templates_index.get(vendor, {})
+        if not isinstance(vendor_templates, dict):
+            sys.stderr.write(
+                f"❌ ОШИБКА: Для вендора '{vendor}' ожидается словарь шаблонов, получено: {type(vendor_templates).__name__}\n"
+            )
+            sys.exit(1)
 
-            # Создаем XML-элемент для соединения
-            edge_label = f"{conn['source_interface']} / {conn['target_interface']}\n{conn['network']}"
+        template_filename = vendor_templates.get(device_type)
+        if not template_filename:
+            sys.stderr.write(
+                f"⚠️  ВНИМАНИЕ: Шаблон не найден для комбинации (вендор='{vendor}', тип='{device_type}') в {index_file}\n"
+                f"    Доступные типы для '{vendor}': {list(vendor_templates.keys()) if vendor_templates else 'нет'}\n"
+            )
+            continue  # Пропускаем отсутствующий шаблон, продолжаем обработку
 
-            edge = f"""
-        <mxCell id="{cell_id}" value="{edge_label}" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;" parent="1" source="{source_id}" target="{target_id}" edge="1">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>"""
+        # Загрузка файла шаблона
+        template_path = stencil_path / template_filename
 
-            mx_cells.append(edge)
-            cell_id += 1
+        if not template_path.exists():
+            sys.stderr.write(
+                f"❌ ОШИБКА: Файл шаблона не найден: {template_path}\n"
+                f"    Указано в индексе для (вендор='{vendor}', тип='{device_type}'): {template_filename}\n"
+            )
+            sys.exit(1)
 
-    # Формируем полный XML
-    cells_xml = "".join(mx_cells)
-    return drawio_template.format(cells_xml)
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_content = f.read().strip()
 
+            if not template_content:
+                sys.stderr.write(f"⚠️  ВНИМАНИЕ: Шаблон пустой: {template_path}\n")
+                template_content = "<!-- Пустой шаблон -->"
 
-def generate_network_diagram(devices: List[Dict], output_file: str = "network_diagram.drawio"):
-    """Основная функция генерации сетевой диаграммы"""
-    print("\n🎨 Генерация сетевой диаграммы...")
-    
-    # Проверяем существование каталога presentation
-    if not os.path.exists(PRESENTATION_DIR):
-        raise FileNotFoundError(
-            f"❌ Каталог с шаблонами presentation не найден: {PRESENTATION_DIR}\n"
-            f"💡 Создайте каталог и поместите в него шаблоны:"
-            f"\n   mkdir -p {PRESENTATION_DIR}"
-            f"\n   mkdir -p {TEMPLATES_DIR}"
-            f"\n   # Затем создайте файлы drawio_template.xml и шаблонов в этих каталогах"
-        )
-    
-    # Загружаем шаблоны визуализации
-    templates = load_presentation_templates()
-    
-    # Находим связи между устройствами
-    connections = find_connections(devices)
-    print(f"🔗 Найдено связей: {len(connections)}")
-    
-    # Генерируем XML для draw.io
-    xml_content = generate_drawio_xml(devices, connections, templates)
-    
-    # Сохраняем в файл
-    with open(output_file, 'w', encoding='utf-8') as f:
-        f.write(xml_content)
-    
-    print(f"✅ Диаграмма сохранена в файл: {output_file}")
-    print(f"💡 Откройте файл в draw.io (https://app.diagrams.net/) для просмотра и редактирования")
-    
-    return output_file
+            # Сохранение в иерархический словарь
+            templates.setdefault(vendor, {})[device_type] = template_content
 
+        except UnicodeDecodeError:
+            sys.stderr.write(
+                f"❌ ОШИБКА: Невозможно декодировать шаблон как UTF-8: {template_path}\n"
+                f"    Убедитесь, что файл сохранён в кодировке UTF-8.\n"
+            )
+            sys.exit(1)
+        except Exception as e:
+            sys.stderr.write(f"❌ ОШИБКА: Не удалось прочитать шаблон {template_path}:\n{type(e).__name__}: {e}\n")
+            sys.exit(1)
 
-def determine_device_key(device_info: Dict) -> str:
-    """Определяет ключ для поиска шаблона на основе вендора и типа устройства"""
-    vendor = device_info["vendor"].lower()
-    device_type = device_info["device_type"].lower()
-    
-    # Упрощаем тип устройства для поиска шаблона
-    simplified_type = "default"
-    
-    if vendor == "huawei":
-        # Специальная обработка для Huawei с поиском по модели
-        model = device_info.get("model", "").lower()
-        if "fm8850" in model or "8850" in model:
-            return "huawei_switch"
-        if "ce6881" in model or "ce8850" in model or "ce6800" in model:
-            return "huawei_switch"
-        elif "ne" in model or "ar" in model:
-            return "huawei_router"
-    
-    if "switch" in device_type.lower() or "leaf" in device_type.lower() or "spine" in device_type.lower():
-        simplified_type = "switch"
-    elif "router" in device_type.lower() or "core" in device_type.lower():
-        simplified_type = "router"
-    elif "firewall" in device_type.lower() or "security" in device_type.lower():
-        simplified_type = "firewall"
-    
-    # Возвращаем ключ в формате "vendor_simplified_type"
-    return f"{vendor}_{simplified_type}"
+    # === Шаг 5: Отчёт о результатах ===
+    total_loaded = sum(len(types) for types in templates.values())
+    sys.stderr.write(
+        f"✅ Загружено шаблонов: {total_loaded} "
+        f"(уникальных комбинаций вендор/тип: {len(unique_devices)}, "
+        f"найдено в индексе: {total_loaded})\n"
+    )
+
+    return templates
