@@ -31,3 +31,8 @@ templates:
     - wireless_controller: default.yaml
   Palo_Alto:
     - firewall: firewall.yaml
+  common:
+    - network: network.yaml
+    - logical_link: logical_link.yaml
+    - mgm_link: mgm_link.yaml
+    - physical_link: physical_link.yaml

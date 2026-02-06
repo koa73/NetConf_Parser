@@ -50,8 +50,8 @@ def main():
     )
     if links_result:
         print(f"⚠️  Создаю диаграмму\n")
+        print(links_result)
         print(viz.load_stencil_templates(links_result))
-        # print(load_stencil_templates(STENCIL_TEMPLATES, links))
 
 
 if __name__ == "__main__":

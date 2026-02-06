@@ -31,6 +31,7 @@ class NetworkVisualizer:
         self.pattern_dir = Path(pattern_dir).resolve()
         self.drawio_template =  drawio_template
         self.drawio_stencil_templates = Path(drawio_stencil_templates).resolve()
+        self.diagram_template = self.load_drawio_template()
         
         # Валидация базового каталога при инициализации
         if not self.pattern_dir.exists() or not self.pattern_dir.is_dir():
@@ -134,19 +135,20 @@ class NetworkVisualizer:
             )
             sys.exit(1)
 
+
     def load_stencil_templates(self, links: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
         """
         Загружает шаблоны изображений устройств (stencils) для визуализации.
-        
+
         Поддерживает структуру index.yaml:
             templates:
               VendorName:
                 - type1: filename1.xml
                 - type2: filename2.xml
-        
+
         Args:
             links (Dict[str, Any]): Словарь связей с ключом 'physical_links'
-            
+
         Returns:
             Dict[str, Dict[str, str]]: Вложенный словарь {вендор: {тип: содержимое_шаблона}}
         """
@@ -211,7 +213,12 @@ class NetworkVisualizer:
             )
             sys.exit(1)
 
-        unique_devices: Set[Tuple[str, str]] = set()
+        unique_devices: Set[Tuple[str, str]] = {
+            ('common', 'network'),
+            ('common', 'physical_link'),
+            ('common', 'logical_link'),
+            ('common', 'mgm_link')
+        }
 
         for link in physical_links:
             # Структура: [dev1, vendor1, type1, intf1, ip1, dev2, vendor2, type2, intf2, ip2, net]
@@ -229,7 +236,8 @@ class NetworkVisualizer:
             unique_devices.add((vendor1, type1))
             unique_devices.add((vendor2, type2))
 
-        if not unique_devices:
+
+        if len(unique_devices) < 5:
             sys.stderr.write(
                 "ℹ️  Не обнаружено устройств в физических связях. Возврат пустого словаря шаблонов.\n"
             )
@@ -267,20 +275,7 @@ class NetworkVisualizer:
                 )
                 continue
 
-            try:
-                with open(template_path, 'r', encoding='utf-8') as f:
-                    content = f.read().strip()
-                if not content:
-                    content = "<!-- Пустой шаблон -->"
-
-                templates.setdefault(vendor, {})[dev_type] = content
-
-            except Exception as e:
-                sys.stderr.write(
-                    f"❌ ОШИБКА: Не удалось прочитать шаблон {template_path}:\n"
-                    f"{type(e).__name__}: {e}\n"
-                )
-                sys.exit(1)
+            templates.setdefault(vendor, {})[dev_type] = self.read_yaml_file(str(template_path))['xml']
 
         # === Шаг 6: Отчёт о результатах ===
         total_loaded = sum(len(types) for types in templates.values())
