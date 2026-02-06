@@ -411,6 +411,7 @@ class NetworkVisualizer:
                 network_xml = network_template.replace('--NAME--', network)
                 objects['networks'][network] = network_xml
 
+
         # Создаем объекты для физических связей
         for i, link in enumerate(physical_links):
             if len(link) >= 11:
