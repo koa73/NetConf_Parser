@@ -294,7 +294,8 @@ class NetworkVisualizer:
 
         return templates
 
-    def make_object_list(self, links_result: Dict[str, Any], templates: Dict[str, Dict[str, str]]) -> Dict[str, str]:
+    @staticmethod
+    def make_object_list(links_result: Dict[str, Any], templates: Dict[str, Dict[str, str]]) -> Dict[str, str]:
         """
         Генерирует список объектов draw.io для визуализации устройств, сетей и связей.
 
@@ -338,7 +339,9 @@ class NetworkVisualizer:
                 dev = mgmt[0]
                 network = mgmt[3]
                 devices.add(dev)
-                networks.add(network)
+                # Проверяем, что сеть отсутствует в словаре объектов перед добавлением
+                if network not in objects['networks']:
+                    networks.add(network)
 
         # Добавляем логические связи
         logical_links = links_result.get('logical_links', [])
@@ -350,7 +353,9 @@ class NetworkVisualizer:
                 desc = logical[4]
                 if 'Service Network:' in desc:
                     network = desc.split('Service Network:')[1].strip()
-                    networks.add(network)
+                    # Проверяем, что сеть отсутствует в словаре объектов перед добавлением
+                    if network not in objects['networks']:
+                        networks.add(network)
 
                 devices.add(dev1)
                 devices.add(dev2)
@@ -395,6 +400,7 @@ class NetworkVisualizer:
                 if default_template:
                     device_xml = default_template.replace('--NAME--', device)
                     objects['devices'][device] = device_xml
+
 
         # Создаем объекты для сетей
         for network in networks:

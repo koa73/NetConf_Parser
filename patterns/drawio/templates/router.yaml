@@ -1,5 +1,5 @@
 xml: >
-  <object id="--ID--" label="&lt;font style=&quot;color: light-dark(rgb(0, 0, 0), rgb(237, 237, 237)); line-height: 140%; font-size: 9px; &quot;&gt;&amp;nbsp;---NAME---&amp;nbsp;&lt;/font&gt;" title="" description="" realization_type="" model="" type="" segment="" purpose="" address="0.0.0.0" network_connection="[]" OID="" schema="seaf.ta.components.network">
+  <object parent="1" id="--ID--" label="&lt;font style=&quot;color: light-dark(rgb(0, 0, 0), rgb(237, 237, 237)); line-height: 140%; font-size: 9px; &quot;&gt;&amp;nbsp;---NAME---&amp;nbsp;&lt;/font&gt;" title="" description="" realization_type="" model="" type="" segment="" purpose="" address="0.0.0.0" network_connection="[]" OID="" schema="seaf.ta.components.network">
     <mxCell parent="1" style="shape=mxgraph.cisco.routers.router;sketch=0;html=1;pointerEvents=1;dashed=0;fillColor=#036897;strokeColor=#ffffff;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;labelBackgroundColor=default;fontSize=12;fontColor=#FFFFFF;" vertex="1">
        <mxGeometry height="50" width="80" x="--X--" y="--Y--" as="geometry" />
     </mxCell>
