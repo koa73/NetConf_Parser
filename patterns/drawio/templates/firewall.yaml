@@ -1,6 +1,6 @@
 xml: >
   <object id="--ID--" label="&lt;font style=&quot;color: light-dark(rgb(0, 0, 0), rgb(237, 237, 237)); line-height: 140%; font-size: 9px; &quot;&gt;&amp;nbsp;--NAME--&amp;nbsp;&lt;/font&gt;" title="FireWall" description="" realization_type="" model="" type="МСЭ" segment="" purpose="" address="" network_connection="[&#39;&#39;]" OID="" schema="seaf.ta.components.network">
     <mxCell parent="1" style="shape=mxgraph.cisco.security.firewall;html=1;pointerEvents=1;dashed=0;fillColor=#FF0000;strokeColor=#ffffff;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;flipH=1;legacyAnchorPoints=0;" vertex="1">
-        <mxGeometry height="70" width="30" x="400" y="380" as="geometry" />
+        <mxGeometry height="70" width="30" x="--X--" y="--Y--" as="geometry" />
     </mxCell>
   </object>

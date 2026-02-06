@@ -56,6 +56,12 @@ def main():
         print(f"Devices: {len(object_list['devices'])}")
         print(f"Networks: {len(object_list['networks'])}")
         print(f"Physical Links: {len(object_list['physical_links'])}")
+        print(f"Mgm Links: {len(object_list['mgm_links'])}")
+        print(f"Logical Links: {len(object_list['logical_links'])}")
+        # Print a sample of each type
+        print("\nSample Physical Links:", list(object_list['physical_links'].keys())[:2])
+        print("Sample Mgm Links:", list(object_list['mgm_links'].keys())[:2])
+        print("Sample Logical Links:", list(object_list['logical_links'].keys())[:2])
         print(object_list['physical_links'])
 
 if __name__ == "__main__":

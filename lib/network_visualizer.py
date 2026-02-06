@@ -296,7 +296,7 @@ class NetworkVisualizer:
 
     def make_object_list(self, links_result: Dict[str, Any], templates: Dict[str, Dict[str, str]]) -> Dict[str, str]:
         """
-        Генерирует список объектов draw.io для визуализации устройств, сетей и физических связей.
+        Генерирует список объектов draw.io для визуализации устройств, сетей и связей.
 
         Args:
             links_result (Dict[str, Any]): Словарь с результатами анализа топологии
@@ -308,7 +308,9 @@ class NetworkVisualizer:
         objects = {
             'devices': {},
             'networks': {},
-            'physical_links': {}
+            'physical_links': {},
+            'mgm_links': {},
+            'logical_links': {}
         }
 
         # Получаем физические связи
@@ -416,5 +418,36 @@ class NetworkVisualizer:
                     # Заменяем --NAME-- на информацию о связи
                     link_xml = link_template.replace('--NAME--', f"{dev1}-{dev2}")
                     objects['physical_links'][f"link_{i}_{dev1}_{dev2}"] = link_xml
+
+        # Создаем объекты для управленческих связей
+        mgmt_networks = links_result.get('mgmt_networks', [])
+        for i, mgmt in enumerate(mgmt_networks):
+            if len(mgmt) >= 4:
+                dev = mgmt[0]
+                interface = mgmt[1] if len(mgmt) > 1 else "unknown"
+                ip = mgmt[2] if len(mgmt) > 2 else "unknown"
+                network = mgmt[3] if len(mgmt) > 3 else "unknown"
+
+                # Используем шаблон управленческой связи
+                mgm_link_template = templates.get('common', {}).get('mgm_link')
+                if mgm_link_template:
+                    # Заменяем --NAME-- на информацию о связи
+                    mgm_link_xml = mgm_link_template.replace('--NAME--', f"{dev}:{interface}")
+                    objects['mgm_links'][f"mgm_link_{i}_{dev}"] = mgm_link_xml
+
+        # Создаем объекты для логических связей
+        logical_links = links_result.get('logical_links', [])
+        for i, logical in enumerate(logical_links):
+            if len(logical) >= 5:
+                dev1 = logical[0]
+                dev2 = logical[2]
+                desc = logical[4]
+
+                # Используем шаблон логической связи
+                logical_link_template = templates.get('common', {}).get('logical_link')
+                if logical_link_template:
+                    # Заменяем --NAME-- на информацию о связи
+                    logical_link_xml = logical_link_template.replace('--NAME--', f"{dev1}-{dev2}({desc})")
+                    objects['logical_links'][f"logical_link_{i}_{dev1}_{dev2}"] = logical_link_xml
 
         return objects
