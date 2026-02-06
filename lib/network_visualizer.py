@@ -293,3 +293,128 @@ class NetworkVisualizer:
             sys.exit(1)
 
         return templates
+
+    def make_object_list(self, links_result: Dict[str, Any], templates: Dict[str, Dict[str, str]]) -> Dict[str, str]:
+        """
+        Генерирует список объектов draw.io для визуализации устройств, сетей и физических связей.
+
+        Args:
+            links_result (Dict[str, Any]): Словарь с результатами анализа топологии
+            templates (Dict[str, Dict[str, str]]): Словарь шаблонов устройств
+
+        Returns:
+            Dict[str, str]: Словарь с объектами draw.io для устройств, сетей и связей
+        """
+        objects = {
+            'devices': {},
+            'networks': {},
+            'physical_links': {}
+        }
+
+        # Получаем физические связи
+        physical_links = links_result.get('physical_links', [])
+
+        # Собираем уникальные устройства из физических связей
+        devices = set()
+        networks = set()
+
+        for link in physical_links:
+            # Структура: [dev1, vendor1, type1, intf1, ip1, dev2, vendor2, type2, intf2, ip2, net]
+            if len(link) >= 11:
+                dev1 = link[0]
+                dev2 = link[5]
+                network = link[10]
+
+                devices.add(dev1)
+                devices.add(dev2)
+                networks.add(network)
+
+        # Добавляем управленческие интерфейсы
+        mgmt_networks = links_result.get('mgmt_networks', [])
+        for mgmt in mgmt_networks:
+            if len(mgmt) >= 4:
+                dev = mgmt[0]
+                network = mgmt[3]
+                devices.add(dev)
+                networks.add(network)
+
+        # Добавляем логические связи
+        logical_links = links_result.get('logical_links', [])
+        for logical in logical_links:
+            if len(logical) >= 5:
+                dev1 = logical[0]
+                dev2 = logical[2]
+                # Извлекаем сеть из описания
+                desc = logical[4]
+                if 'Service Network:' in desc:
+                    network = desc.split('Service Network:')[1].strip()
+                    networks.add(network)
+
+                devices.add(dev1)
+                devices.add(dev2)
+
+        # Создаем объекты для устройств
+        for device in devices:
+            # Для каждого устройства нужно определить его вендора и тип
+            # Находим информацию об устройстве в физических связях
+            vendor = "unknown"
+            dev_type = "unknown"
+
+            # Ищем информацию об устройстве в физических связях
+            for link in physical_links:
+                if len(link) >= 8 and (link[0] == device or link[5] == device):
+                    if link[0] == device:
+                        vendor = link[1].lower()
+                        dev_type = link[2].lower()
+                    elif link[5] == device:
+                        vendor = link[6].lower()
+                        dev_type = link[7].lower()
+                    break
+
+            # Если не нашли в физических связях, ищем в управленческих
+            if vendor == "unknown" or dev_type == "unknown":
+                for mgmt in mgmt_networks:
+                    if len(mgmt) >= 1 and mgmt[0] == device:
+                        # В данном случае не можем точно определить vendor и type
+                        # используем информацию из других источников
+                        break
+
+            # Пытаемся получить шаблон для устройства
+            vendor_templates = templates.get(vendor, {})
+            device_template = vendor_templates.get(dev_type)
+
+            if device_template:
+                # Заменяем --NAME-- на имя устройства
+                device_xml = device_template.replace('--NAME--', device)
+                objects['devices'][device] = device_xml
+            else:
+                # Используем шаблон по умолчанию
+                default_template = vendor_templates.get('default') or templates.get('common', {}).get('default')
+                if default_template:
+                    device_xml = default_template.replace('--NAME--', device)
+                    objects['devices'][device] = device_xml
+
+        # Создаем объекты для сетей
+        for network in networks:
+            # Используем шаблон сети
+            network_template = templates.get('common', {}).get('network')
+            if network_template:
+                # Заменяем --NAME-- на адрес сети
+                network_xml = network_template.replace('--NAME--', network)
+                objects['networks'][network] = network_xml
+
+        # Создаем объекты для физических связей
+        for i, link in enumerate(physical_links):
+            if len(link) >= 11:
+                dev1 = link[0]
+                dev2 = link[5]
+                network = link[10]
+
+                # Используем шаблон физической связи
+                link_template = templates.get('common', {}).get('physical_link')
+                if link_template:
+                    # Заменяем --NAME-- на информацию о связи
+                    link_xml = link_template.replace('--NAME--', f"{dev1}-{dev2}")
+                    objects['physical_links'][f"link_{i}_{dev1}_{dev2}"] = link_xml
+
+        return objects
