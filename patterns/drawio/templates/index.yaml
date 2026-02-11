@@ -1,38 +1,38 @@
 templates:
   Arista:
-    - switch: switch.yaml
+    - switch: switch
   Aruba:
-    - switch: switch.yaml
+    - switch: switch
     - wireless_controller: default.yaml
   Cisco:
-    - switch: switch.yaml
-    - firewall: firewall.yaml
-    - router: router.yaml
+    - switch: switch
+    - firewall: firewall
+    - router: router
   Dell:
-    - switch: switch.yaml
+    - switch: switch
   F5:
-    - load_balancer: default.yaml
+    - load_balancer: default
   Fortinet:
-    - firewall: firewall.yaml
+    - firewall: firewall
   Huawei:
-    - carrier_switch: switch.yaml
-    - olt_device: default.yaml
-    - firewall: firewall.yaml
-    - carrier_router: router.yaml
-    - enterprise_switch: switch.yaml
-    - enterprise_router: router.yaml
+    - carrier_switch: switch
+    - olt_device: default
+    - firewall: firewall
+    - carrier_router: router
+    - enterprise_switch: switch
+    - enterprise_router: router
   Juniper:
-    - switch: switch.yaml
-    - firewall: firewall.yaml
-    - router: router.yaml
+    - switch: switch
+    - firewall: firewall
+    - router: router
   MikroTik:
-    - router: router.yaml
-    - switch: switch.yaml
-    - wireless_controller: default.yaml
+    - router: router
+    - switch: switch
+    - wireless_controller: default
   Palo_Alto:
-    - firewall: firewall.yaml
+    - firewall: firewall
   common:
-    - network: network.yaml
-    - logical_link: logical_link.yaml
-    - mgm_link: mgm_link.yaml
-    - physical_link: physical_link.yaml
+    - network: network
+    - logical_link: logical_link
+    - mgm_link: mgm_link
+    - physical_link: physical_link

@@ -50,19 +50,11 @@ def main():
     )
     if links_result:
         print(f"⚠️  Создаю диаграмму\n")
-        templates = viz.load_stencil_templates(links_result)
-        object_list = viz.make_object_list(links_result, templates)
-        print("Objects generated:")
-        print(f"Devices: {len(object_list['devices'])}")
-        print(f"Networks: {len(object_list['networks'])}")
-        print(f"Physical Links: {len(object_list['physical_links'])}")
-        print(f"Mgm Links: {len(object_list['mgm_links'])}")
-        print(f"Logical Links: {len(object_list['logical_links'])}")
-        # Print a sample of each type
-        print("\nSample Physical Links:", list(object_list['physical_links'].keys())[:2])
-        print("Sample Mgm Links:", list(object_list['mgm_links'].keys())[:2])
-        print("Sample Logical Links:", list(object_list['logical_links'].keys())[:2])
-        print(object_list['physical_links'])
+        #templates = viz.load_stencil_templates(links_result)
+        #object_list = viz.make_object_list(links_result, templates)
+
+        viz.prepare_stencils(links_result)
+
 
 if __name__ == "__main__":
     main()

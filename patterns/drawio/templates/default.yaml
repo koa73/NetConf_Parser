@@ -1,6 +1,0 @@
-xml: >
-  <object parent="1" id="--ID--" label="&lt;font style=&quot;color: light-dark(rgb(0, 0, 0), rgb(237, 237, 237)); line-height: 140%; font-size: 9px; &quot;&gt;&amp;nbsp;---NAME---&amp;nbsp;&lt;/font&gt;" title="" description="" realization_type="" model="" type="" segment="" purpose="" address="0.0.0.0" network_connection="[]" OID="" schema="seaf.ta.components.network" id="DIXHpNEjI2VSMcOSBpu--10">
-     <mxCell parent="1" style="shape=mxgraph.cisco.wireless.wlan_controller;sketch=0;html=1;pointerEvents=1;dashed=0;fillColor=#036897;strokeColor=#ffffff;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;labelBackgroundColor=none;fontSize=9;fontColor=default;fontStyle=1;" vertex="1">
-        <mxGeometry height="50" width="90" x="--X--" y="--Y--" as="geometry" />
-      </mxCell>
-  </object>

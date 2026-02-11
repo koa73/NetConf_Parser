@@ -1,7 +1,0 @@
-xml: >
-  <mxCell id="--ID--" value="--LABEL--" style="endArrow=none;html=1;strokeColor=#43a047;strokeWidth=2;dashed=1;" edge="1" parent="2">
-      <mxGeometry width="50" height="50" relative="1" as="geometry">
-          <mxPoint x="--X1--" y="--Y1--" as="sourcePoint"/>
-          <mxPoint x="--X2--" y="--Y2--" as="targetPoint"/>
-      </mxGeometry>
-  </mxCell>
