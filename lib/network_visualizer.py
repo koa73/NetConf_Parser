@@ -127,7 +127,7 @@ class NetworkVisualizer:
             index_data = yaml.safe_load(f)
 
         # Read the devices.yaml file from the same directory
-        devices_path = directory / 'devices.yaml'
+        devices_path = directory / 'stencils.yaml'
         if devices_path.exists():
             with open(devices_path, 'r', encoding='utf-8') as f:
                 devices_data = yaml.safe_load(f)
@@ -158,8 +158,7 @@ class NetworkVisualizer:
 
         return result
 
-
     def prepare_stencils(self, links: Dict[str, Any]):
-        print(self.merge_yaml_files())
+        print(self.merge_yaml_files()['common'])
 
 
