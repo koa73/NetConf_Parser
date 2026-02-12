@@ -568,52 +568,109 @@ class NetworkVisualizer:
     @staticmethod
     def layout_algorithm_circular(objects: dict, padding: int = 50) -> dict:
         """
-        Круговой алгоритм размещения объектов
-        
+        Круговой алгоритм размещения объектов с вложенными кругами
+
         Args:
             objects (dict): Словарь с объектами {'devices': devices, 'networks': networks, 'links': links}
             padding (int): Паддинг вокруг объектов
-            
+
         Returns:
             dict: Модифицированный словарь с проставленными координатами
         """
         import math
+
+        devices = objects['devices']
+        networks = objects['networks']
+
+        # Определяем, какие элементы будут во внутреннем круге
+        inner_group = None
+        outer_group = None
         
-        all_objects = {}
-        all_objects.update(objects['devices'])
-        all_objects.update(objects['networks'])
+        if len(devices) <= len(networks):
+            # Устройства во внутреннем круге, сети во внешнем
+            inner_group = devices
+            outer_group = networks
+            inner_label = 'devices'
+            outer_label = 'networks'
+        else:
+            # Сети во внутреннем круге, устройства во внешнем
+            inner_group = networks
+            outer_group = devices
+            inner_label = 'networks'
+            outer_label = 'devices'
+
+        # Рассчитываем максимальные размеры для корректного определения радиусов
+        max_inner_size = 0
+        max_outer_size = 0
         
-        n = len(all_objects)
-        if n == 0:
-            return objects
-            
-        # Рассчитываем радиус окружности
-        max_width_height = 0
-        for obj_data in all_objects.values():
+        for obj_data in inner_group.values():
             w = obj_data.get('width', 50)
             h = obj_data.get('height', 50)
-            max_width_height = max(max_width_height, w, h)
+            max_inner_size = max(max_inner_size, w, h)
+            
+        for obj_data in outer_group.values():
+            w = obj_data.get('width', 50)
+            h = obj_data.get('height', 50)
+            max_outer_size = max(max_outer_size, w, h)
         
-        radius = max((n * (max_width_height + padding)) / (2 * math.pi), max_width_height + padding)
+        max_obj_size = max(max_inner_size, max_outer_size)
+
+        # Рассчитываем радиусы для внутреннего и внешнего кругов
+        n_inner = len(inner_group)
+        n_outer = len(outer_group)
         
+        if n_inner > 0:
+            inner_radius = max((n_inner * (max_inner_size + padding)) / (2 * math.pi), max_inner_size + padding)
+        else:
+            inner_radius = 0
+            
+        if n_outer > 0:
+            outer_radius = max((n_outer * (max_outer_size + padding)) / (2 * math.pi), inner_radius + max_outer_size + padding)
+        else:
+            outer_radius = inner_radius + max_obj_size + padding
+
         center_x, center_y = 0, 0
-        angle_step = 2 * math.pi / n if n > 0 else 0
-        
-        i = 0
-        for obj_id in all_objects.keys():
-            angle = i * angle_step
-            x = center_x + radius * math.cos(angle) - all_objects[obj_id].get('width', 50) / 2
-            y = center_y + radius * math.sin(angle) - all_objects[obj_id].get('height', 50) / 2
-            
-            # Обновляем координаты в соответствующем словаре
-            if obj_id in objects['devices']:
-                objects['devices'][obj_id]['x'] = x
-                objects['devices'][obj_id]['y'] = y
-            elif obj_id in objects['networks']:
-                objects['networks'][obj_id]['x'] = x
-                objects['networks'][obj_id]['y'] = y
-            i += 1
-            
+
+        # Размещаем внутренние объекты
+        if n_inner > 0:
+            inner_angle_step = 2 * math.pi / n_inner if n_inner > 0 else 0
+            for i, obj_id in enumerate(inner_group.keys()):
+                angle = i * inner_angle_step
+                x = center_x + inner_radius * math.cos(angle) - inner_group[obj_id].get('width', 50) / 2
+                y = center_y + inner_radius * math.sin(angle) - inner_group[obj_id].get('height', 50) / 2
+
+                # Округляем координаты до ближайшего целого
+                x = round(x)
+                y = round(y)
+
+                # Обновляем координаты в соответствующем словаре
+                if inner_label == 'devices':
+                    objects['devices'][obj_id]['x'] = x
+                    objects['devices'][obj_id]['y'] = y
+                else:
+                    objects['networks'][obj_id]['x'] = x
+                    objects['networks'][obj_id]['y'] = y
+
+        # Размещаем внешние объекты
+        if n_outer > 0:
+            outer_angle_step = 2 * math.pi / n_outer if n_outer > 0 else 0
+            for i, obj_id in enumerate(outer_group.keys()):
+                angle = i * outer_angle_step
+                x = center_x + outer_radius * math.cos(angle) - outer_group[obj_id].get('width', 50) / 2
+                y = center_y + outer_radius * math.sin(angle) - outer_group[obj_id].get('height', 50) / 2
+
+                # Округляем координаты до ближайшего целого
+                x = round(x)
+                y = round(y)
+
+                # Обновляем координаты в соответствующем словаре
+                if outer_label == 'devices':
+                    objects['devices'][obj_id]['x'] = x
+                    objects['devices'][obj_id]['y'] = y
+                else:
+                    objects['networks'][obj_id]['x'] = x
+                    objects['networks'][obj_id]['y'] = y
+
         return objects
 
     @staticmethod
