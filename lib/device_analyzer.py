@@ -737,20 +737,20 @@ class ReportGenerator:
 
         # Управленческие сети
         mgmt = result.get("mgmt_networks", [])
-        print("\n" + "=" * 130)
+        print("\n" + "=" * 110)
         print("🖥️  УПРАВЛЕНЧЕСКИЕ ИНТЕРФЕЙСЫ (Management Networks)")
-        print("=" * 130)
+        print("=" * 110)
         if mgmt:
-            print(f"{'Устройство':<25} | {'Вендор':<15} | {'Тип':<15} | {'Интерфейс':<18} | {'IP адрес':<16} | {'Сеть':<20}")
-            print("-" * 130)
+            print(f"{'Устройство':<25} |  {'Интерфейс':<18} | {'IP адрес':<16} | {'Сеть':<20}")
+            print("-" * 110)
             for entry in mgmt:
                 if len(entry) >= 6:
                     dev, vendor, dev_type, intf, ip, net = entry
-                    print(f"{dev:<25} | {vendor:<15} | {dev_type:<15} | {intf:<18} | {ip:<16} | {net:<20}")
+                    print(f"{dev:<25} |  {intf:<18} | {ip:<16} | {net:<20}")
                 else:
                     # Fallback for backward compatibility
                     dev, intf, ip, net = entry
-                    print(f"{dev:<25} | {'':<15} | {'':<15} | {intf:<18} | {ip:<16} | {net:<20}")
+                    print(f"{dev:<25} |  {intf:<18} | {ip:<16} | {net:<20}")
             print(f"\n✅ Всего управленческих интерфейсов: {len(mgmt)}")
 
             networks = {}
@@ -774,16 +774,16 @@ class ReportGenerator:
         print("🌐 ЛОГИЧЕСКИЕ СВЯЗИ (Logical Links: VXLAN Overlay, Service Networks)")
         print("=" * 160)
         if logical:
-            print(f"{'Устройство 1':<25} | {'Вендор':<12} | {'Тип':<15} | {'Интерфейс/IP':<25} | {'Устройство 2':<25} | {'Вендор':<12} | {'Тип':<15} | {'Интерфейс/IP':<25} | {'Тип связи':<35}")
+            print(f"{'Устройство 1':<25} | {'Интерфейс/IP':<25}    | {'Устройство 2':<25} | {'Интерфейс/IP':<25}    | {'Тип связи':<35}")
             print("-" * 160)
             for link in logical:
                 if len(link) >= 9:
                     dev1, vendor1, type1, intf_ip1, dev2, vendor2, type2, intf_ip2, desc = link
-                    print(f"{dev1:<25} | {vendor1:<12} | {type1:<15} | {intf_ip1:<25} | {dev2:<25} | {vendor2:<12} | {type2:<15} | {intf_ip2:<25} | {desc:<35}")
+                    print(f"{dev1:<25} |  {intf_ip1:<25} | {dev2:<25} |  {intf_ip2:<25} | {desc:<35}")
                 else:
                     # Fallback for backward compatibility
                     dev1, intf_ip1, dev2, intf_ip2, desc = link
-                    print(f"{dev1:<25} | {'':<12} | {'':<15} | {intf_ip1:<25} | {dev2:<25} | {'':<12} | {'':<15} | {intf_ip2:<25} | {desc:<35}")
+                    print(f"{dev1:<25} |  {intf_ip1:<25} | {dev2:<25} |  {intf_ip2:<25} | {desc:<35}")
             print(f"\n✅ Всего логических связей: {len(logical)}")
 
             # Calculate statistics considering the new structure
