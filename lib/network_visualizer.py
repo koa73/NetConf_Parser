@@ -389,6 +389,145 @@ class NetworkVisualizer:
 
         return network_list
 
+    @staticmethod
+    def generate_links(data: Dict[str, Any], patterns: Dict[str, Any]) -> list:
+        """
+        Процедура формирования массива словарей, представляющих соединения между устройствами и сетями
+
+        Args:
+            data (dict): Словарь с результатами линков, содержащий physical_links, mgmt_networks и logical_links
+            patterns (dict): Словарь шаблонов устройств
+
+        Returns:
+            list: Массив словарей вида {source, target, style, label, data, src_label}
+        """
+        links = []
+
+        # Получаем шаблоны для различных типов соединений
+        link_styles = {}
+        
+        # Ищем шаблоны для различных типов соединений в словаре patterns
+        if 'common' in patterns:
+            for pattern in patterns['common']:
+                for link_type, template_data in pattern.items():
+                    if link_type.lower() in ['logical_link', 'mgm_link', 'physical_link']:
+                        link_styles[link_type.lower()] = template_data
+
+        # Обработка physical_links
+        # Структура: [device1, vendor1, type1, interface1, ip1, device2, vendor2, type2, interface2, ip2, network]
+        if 'physical_links' in data:
+            for link in data['physical_links']:
+                if len(link) >= 11:  # Проверяем, что список содержит достаточно элементов
+                    device1 = link[0]  # device1
+                    interface1 = link[3]  # interface1
+                    ip1 = link[4]  # ip1
+                    device2 = link[5]  # device2
+                    interface2 = link[8]  # interface2
+                    ip2 = link[9]  # ip2
+                    network = link[10]  # network
+                    
+                    # Получаем стиль для physical_link
+                    style_data = link_styles.get('physical_link', {})
+                    style = style_data.get('style', '')
+                    
+                    # Создаем два соединения: от device1 к network и от device2 к network
+                    # Соединение от device1 к network
+                    link_dict1 = {
+                        'source': device1,
+                        'target': network,
+                        'style': style,
+                        'label': ip1,
+                        'data': None,
+                        'src_label': interface1
+                    }
+                    links.append(link_dict1)
+                    
+                    # Соединение от device2 к network
+                    link_dict2 = {
+                        'source': device2,
+                        'target': network,
+                        'style': style,
+                        'label': ip2,
+                        'data': None,
+                        'src_label': interface2
+                    }
+                    links.append(link_dict2)
+
+        # Обработка mgmt_networks
+        # Структура: [device, vendor, type, interface, ip, network]
+        if 'mgmt_networks' in data:
+            for entry in data['mgmt_networks']:
+                if len(entry) >= 6:
+                    device = entry[0]
+                    interface = entry[3]
+                    ip = entry[4]
+                    network = entry[5]
+                    
+                    # Получаем стиль для mgm_link
+                    style_data = link_styles.get('mgm_link', {})
+                    style = style_data.get('style', '')
+                    
+                    # Создаем соединение от устройства к упр. сети
+                    link_dict = {
+                        'source': device,
+                        'target': network,
+                        'style': style,
+                        'label': ip,
+                        'data': None,
+                        'src_label': interface
+                    }
+                    links.append(link_dict)
+
+        # Обработка logical_links
+        # Структура: [device1, vendor1, type1, interface1, device2, vendor2, type2, interface2, link_type]
+        if 'logical_links' in data:
+            for link in data['logical_links']:
+                if len(link) >= 9:  # Проверяем, что список содержит достаточно элементов
+                    device1 = link[0]  # device1
+                    interface1 = link[3]  # interface1
+                    device2 = link[4]  # device2
+                    interface2 = link[7]  # interface2
+                    link_type = link[8]  # link_type (может содержать информацию о сети)
+                    
+                    # Извлекаем информацию о сети из link_type, если возможно
+                    network = link_type
+                    ip1 = ""  # В logical_links IP может не быть в явном виде
+                    ip2 = ""
+                    
+                    if ':' in link_type:
+                        parts = link_type.split(':', 1)
+                        if len(parts) >= 2:
+                            network = parts[1].strip()
+                    
+                    # Получаем стиль для logical_link
+                    style_data = link_styles.get('logical_link', {})
+                    style = style_data.get('style', '')
+                    
+                    # Создаем два соединения: от device1 к network и от device2 к network
+                    # Соединение от device1 к network
+                    link_dict1 = {
+                        'source': device1,
+                        'target': network,
+                        'style': style,
+                        'label': ip1,
+                        'data': None,
+                        'src_label': interface1
+                    }
+                    links.append(link_dict1)
+                    
+                    # Соединение от device2 к network
+                    link_dict2 = {
+                        'source': device2,
+                        'target': network,
+                        'style': style,
+                        'label': ip2,
+                        'data': None,
+                        'src_label': interface2
+                    }
+                    links.append(link_dict2)
+
+        return links
+
     def prepare_stencils(self, data : Dict[str, Any]):
 
         # 1. Формируем словари шаблонов
