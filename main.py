@@ -48,11 +48,13 @@ def main():
         pattern_dir=DRAWIO_TEMPLATES, drawio_template=DRAWIO_TEMPLATES + "/base.drawio",
         drawio_stencil_templates=STENCIL_TEMPLATES
     )
+
     if links_result:
         print(f"⚠️  Создаю диаграмму\n")
         #templates = viz.load_stencil_templates(links_result)
         #object_list = viz.make_object_list(links_result, templates)
-
+        print(links_result)
+        print("\n\n")
         viz.prepare_stencils(links_result)
 
 

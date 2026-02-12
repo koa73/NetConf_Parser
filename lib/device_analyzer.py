@@ -330,9 +330,44 @@ class NetworkTopologyAnalyzer:
     @staticmethod
     def parse_interface_network(network_entry: str) -> Dict[str, Any]:
         """Парсит запись сети интерфейса."""
-        ip_str, netmask_str = network_entry.split('/')
-        prefix = NetworkTopologyAnalyzer.netmask_to_prefix(netmask_str)
-        network_cidr = NetworkTopologyAnalyzer.calculate_network_address(ip_str, netmask_str)
+        try:
+            ip_str, netmask_str = network_entry.split('/')
+        except ValueError:
+            # If the network entry doesn't contain '/', return default values
+            return {
+                'ip': network_entry,
+                'prefix': 32,  # Default to host route
+                'network_cidr': f"{network_entry}/32",
+                'is_loopback': False,
+                'is_mgmt_network': False,
+                'is_p2p': False
+            }
+
+        # Handle non-standard netmask values like 'ANY'
+        if not netmask_str or netmask_str.upper() == 'ANY':
+            return {
+                'ip': ip_str,
+                'prefix': 0,  # Default for 'any'
+                'network_cidr': f"{ip_str}/0",
+                'is_loopback': False,
+                'is_mgmt_network': False,
+                'is_p2p': False
+            }
+
+        try:
+            prefix = NetworkTopologyAnalyzer.netmask_to_prefix(netmask_str)
+            network_cidr = NetworkTopologyAnalyzer.calculate_network_address(ip_str, netmask_str)
+        except ValueError:
+            # If netmask is invalid, use defaults
+            return {
+                'ip': ip_str,
+                'prefix': 32,  # Default to host route
+                'network_cidr': f"{ip_str}/32",
+                'is_loopback': False,
+                'is_mgmt_network': False,
+                'is_p2p': False
+            }
+
         return {
             'ip': ip_str,
             'prefix': prefix,
