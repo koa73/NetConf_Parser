@@ -158,7 +158,122 @@ class NetworkVisualizer:
 
         return result
 
-    def prepare_stencils(self, links: Dict[str, Any]):
-        print(self.merge_yaml_files())
+    def generate_device_list(self, data: Dict[str, Any], patterns: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Процедура формирования списка устройств на основе link_result и merge_yaml_files
+
+        Args:
+            data (dict): Словарь с результатами линков, содержащий physical_links и mgmt_networks
+            patterns (dict): Словарь шаблонов устройств, где ключи - это вендоры, а значения - списки шаблонов
+
+        Returns:
+            dict: Словарь в формате {имя_устройства: {данные_из_шаблона}}
+        """
+        device_list = {}
+
+        # Извлекаем уникальные устройства из physical_links и mgmt_networks
+        unique_devices = set()
+
+        # Обработка physical_links
+        # Структура: [device1, vendor1, type1, interface1, ip1, device2, vendor2, type2, interface2, ip2, network]
+        if 'physical_links' in data:
+            for link in data['physical_links']:
+                if len(link) >= 11:  # Проверяем, что список содержит достаточно элементов
+                    device1 = link[0]
+                    device2 = link[5]
+                    unique_devices.add(device1)
+                    unique_devices.add(device2)
+
+        # Обработка mgmt_networks
+        # Структура: [device, vendor, type, interface, ip, network]
+        if 'mgmt_networks' in data:
+            for network in data['mgmt_networks']:
+                if len(network) >= 6:  # Проверяем, что список содержит достаточно элементов
+                    device = network[0]
+                    unique_devices.add(device)
+
+        # Обработка logical_links
+        # Структура: [device1, vendor1, type1, interface1, device2, vendor2, type2, interface2, link_type]
+        if 'logical_links' in data:
+            for link in data['logical_links']:
+                if len(link) >= 7:  # Проверяем, что список содержит достаточно элементов
+                    device1 = link[0]
+                    device2 = link[4]
+                    unique_devices.add(device1)
+                    unique_devices.add(device2)
+
+        # Для каждого уникального устройства находим соответствующий шаблон
+        for device_name in unique_devices:
+            # Находим информацию об устройстве в данных
+            vendor = None
+            device_type = None
+
+            # Ищем vendor и type в physical_links
+            if 'physical_links' in data:
+                for link in data['physical_links']:
+                    if len(link) >= 11:
+                        if link[0] == device_name:  # device1
+                            vendor = link[1].lower()
+                            device_type = link[2].lower()
+                            break
+                        elif link[5] == device_name:  # device2
+                            vendor = link[6].lower()
+                            device_type = link[7].lower()
+                            break
+
+            # Если не нашли в physical_links, ищем в mgmt_networks
+            if not vendor and not device_type and 'mgmt_networks' in data:
+                for network in data['mgmt_networks']:
+                    if len(network) >= 6:
+                        if network[0] == device_name:
+                            vendor = network[1].lower()
+                            device_type = network[2].lower()
+                            break
+
+            # Если всё ещё не нашли vendor и type, ищем в logical_links
+            if not vendor and not device_type and 'logical_links' in data:
+                for link in data['logical_links']:
+                    if len(link) >= 7:
+                        if link[0] == device_name:  # device1
+                            vendor = link[1].lower()
+                            device_type = link[2].lower()
+                            break
+                        elif link[4] == device_name:  # device2
+                            vendor = link[5].lower()
+                            device_type = link[6].lower()
+                            break
+
+            # Если удалось определить vendor и type, ищем соответствующий шаблон
+            if vendor and device_type:
+                # Ищем шаблон в словаре patterns
+                # patterns имеет структуру: {vendor: [{device_type: template_data}, ...]}
+                if vendor.capitalize() in patterns:
+                    vendor_patterns = patterns[vendor.capitalize()]
+                    
+                    # Ищем шаблон для конкретного типа устройства
+                    for pattern in vendor_patterns:
+                        # pattern - это словарь в формате {device_type: template_data}
+                        for key, template_data in pattern.items():
+                            if key.lower() == device_type.lower():
+                                device_list[device_name] = template_data.copy()
+                                break
+                        else:
+                            continue  # только если внутренний цикл не был прерван
+                        break  # выйти из внешнего цикла, если шаблон найден
+            else:
+                # Если не удалось определить vendor и type, добавляем пустой словарь
+                device_list[device_name] = {}
+
+        return device_list
+
+    def prepare_stencils(self, data : Dict[str, Any]):
+
+        # 1. Формируем словари шаблонов
+        patterns = self.merge_yaml_files()
+
+        # 2. Формируем перечень устройств для размещения на диаграмме
+        devices = self.generate_device_list(data=data, patterns=patterns)
+
+        print(f'{devices}')
 
 
