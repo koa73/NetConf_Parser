@@ -75,6 +75,5 @@ def main():
         
         viz.prepare_stencils(links_result, layout_algorithm=layout_algorithm)
 
-
 if __name__ == "__main__":
     main()

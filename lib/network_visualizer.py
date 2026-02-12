@@ -576,9 +576,8 @@ class NetworkVisualizer:
         print(f'{links}')
         links = self.generate_links(data=data, patterns=patterns)
 
-
-
-    def layout_algorithm_circular(self, objects: dict, padding: int = 50) -> dict:
+    @staticmethod
+    def layout_algorithm_circular(objects: dict, padding: int = 50) -> dict:
         """
         Круговой алгоритм размещения объектов
         
@@ -628,7 +627,8 @@ class NetworkVisualizer:
             
         return objects
 
-    def layout_algorithm_grid(self, objects: dict, padding: int = 50) -> dict:
+    @staticmethod
+    def layout_algorithm_grid(objects: dict, padding: int = 50) -> dict:
         """
         Сеточный алгоритм размещения объектов
         
@@ -683,7 +683,8 @@ class NetworkVisualizer:
             
         return objects
 
-    def layout_algorithm_force_directed(self, objects: dict, padding: int = 50) -> dict:
+    @staticmethod
+    def layout_algorithm_force_directed(objects: dict, padding: int = 50) -> dict:
         """
         Алгоритм силовой направленности для размещения объектов
         
@@ -808,7 +809,8 @@ class NetworkVisualizer:
         
         return objects
 
-    def layout_algorithm_clustered(self, objects: dict, padding: int = 50) -> dict:
+    @staticmethod
+    def layout_algorithm_clustered(objects: dict, padding: int = 50) -> dict:
         """
         Кластерный алгоритм размещения объектов - группировка связанных объектов
         
