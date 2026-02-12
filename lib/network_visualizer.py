@@ -567,7 +567,7 @@ class NetworkVisualizer:
         return objects
 
     @staticmethod
-    def layout_algorithm_circular(objects: dict, padding: int = 20, circular_padding: int = 500) -> dict:
+    def layout_algorithm_circular(objects: dict, padding: int = 20, circular_padding: int = 250) -> dict:
         """
         Круговой алгоритм размещения объектов с вложенными кругами
 
@@ -1144,6 +1144,7 @@ class NetworkVisualizer:
             'devices': ('устройства', 'устройство'),
             'networks': ('сети', 'сеть')
         }
+        print("=" * 110)
 
         for obj_key, (plural_name, singular_name) in object_types.items():
             objects_dict = objects.get(obj_key, {})
