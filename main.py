@@ -49,8 +49,8 @@ def main():
 
         # Генерация сетевой диаграммы
         viz = NetworkVisualizer(
-            pattern_dir = DRAWIO_TEMPLATES, drawio_template = DRAWIO_TEMPLATES + "/base.drawio",
-            drawio_stencil_templates = STENCIL_TEMPLATES
+            pattern_dir=DRAWIO_TEMPLATES, drawio_template=DRAWIO_TEMPLATES + "/base.drawio",
+            drawio_stencil_templates=STENCIL_TEMPLATES
         )
 
         # Выводим меню выбора алгоритма размещения
@@ -60,9 +60,9 @@ def main():
         print("3. Силовой алгоритм")
         print("4. Кластерный алгоритм")
         print("Нажмите Enter для выбора алгоритма по умолчанию (круговой)")
-        
+
         choice = input("Введите номер алгоритма (1-4) или нажмите Enter: ").strip()
-        
+
         # Определяем название алгоритма на основе выбора пользователя
         algorithm_map = {
             '1': 'circular',
@@ -70,10 +70,13 @@ def main():
             '3': 'force_directed',
             '4': 'clustered'
         }
-        
+
         layout_algorithm = algorithm_map.get(choice, 'circular')  # По умолчанию круговой
-        
-        viz.prepare_stencils(links_result, layout_algorithm=layout_algorithm)
+
+        objects = viz.prepare_stencils(links_result, layout_algorithm=layout_algorithm)
+
+        # Создаем диаграмму DraeIO
+        viz.create_drawio_diagram(objects)
 
 if __name__ == "__main__":
     main()

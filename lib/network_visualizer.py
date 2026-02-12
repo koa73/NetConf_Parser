@@ -3,7 +3,8 @@
 """
 import sys
 from pathlib import Path
-from typing import Dict, Any, Set, Tuple
+from typing import Dict, Any
+from N2G import  drawio_diagram
 import yaml
 
 
@@ -367,14 +368,6 @@ class NetworkVisualizer:
             if network_template:
                 break
 
-        # Если шаблон network не найден, используем fallback
-        if not network_template:
-            network_template = {
-                'height': 20,
-                'width': 200,
-                'style': 'style="verticalAlign=middle;align=center;vsdxID=35397;rotation=270;fillColor=#c0cfe2;gradientColor=none;shape=stencil(nZFLDsIwDERP4y0KyQKxLuUCnCAihliEpEpL+ZyetANS6YJFs7JnXmxpTKZqvW2YtGq7nC58F9d5MjvSWqLnLF2pyNRkqlPKfM7pFh36xhZSq1Fhhz/rgdbK5uNBXgxts9r+PjAYck39sPwBVMF6foYp9HugQeIE/ZqL4D/oQnC2vhRjPAhOQkC6U38eZ5FwClO/AQ==);strokeColor=#000000;labelBackgroundColor=none;rounded=1;html=1;whiteSpace=wrap;"'
-            }
-
         # Формируем итоговый словарь
         for network, source_type in network_sources.items():
             # Копируем шаблон и добавляем дополнительные поля
@@ -570,11 +563,7 @@ class NetworkVisualizer:
             # По умолчанию используем круговой алгоритм
             objects = self.layout_algorithm_circular(objects)
 
-        devices = objects['devices']
-        networks = objects['networks']
-
-        print(f'{links}')
-        links = self.generate_links(data=data, patterns=patterns)
+        return objects
 
     @staticmethod
     def layout_algorithm_circular(objects: dict, padding: int = 50) -> dict:
@@ -926,5 +915,56 @@ class NetworkVisualizer:
                 max_cluster_height = max(max_cluster_height, rows * cluster_max_height + padding)
         
         return objects
+
+    def create_drawio_diagram(self, objects: dict ):
+        """
+        Создает диаграмму draw.io из словаря объектов
+        
+        Args:
+            objects (dict): Словарь с объектами {'devices': devices, 'networks': networks, 'links': links}
+        """
+        diagram = drawio_diagram()
+        diagram.from_file(filename=self.drawio_template)
+
+        # Добавляем на диаграмму устройства и сети
+        object_types = {
+            'devices': ('устройства', 'устройство'),
+            'networks': ('сети', 'сеть')
+        }
+
+        for obj_key, (plural_name, singular_name) in object_types.items():
+            objects_dict = objects.get(obj_key, {})
+            total = len(objects_dict)
+            added = 0
+            errors = 0
+
+            for obj_id, obj_data in objects_dict.items():
+                try:
+                    # Добавляем объект на диаграмму
+                    diagram.add_node(
+                        id=obj_id,
+                        x_pos=obj_data.get('x', 0),
+                        y_pos=obj_data.get('y', 0),
+                        width=obj_data.get('width', 100),
+                        height=obj_data.get('height', 50),
+                        style=obj_data.get('style', '')
+                    )
+                    added += 1
+
+                    # Сохраняем отладочную печать только для устройств (как в оригинале)
+                    if obj_key == 'devices':
+                        print(obj_id)
+
+                except Exception as e:
+                    errors += 1
+                    print(f"Ошибка при добавлении {singular_name} {obj_id}: {e}")
+
+            # Вывод статистики для текущего типа объектов
+            print(f"Добавлено {plural_name}: {added}/{total}, ошибок: {errors}")
+
+
+        # Сохраняем диаграмму
+        diagram.dump_file(filename="network_diagram.drawio", folder="./")
+
 
 
