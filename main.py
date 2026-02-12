@@ -43,15 +43,16 @@ def main():
     ReportGenerator.print_topology_analysis(links_result)
     ReportGenerator.write_detailed_report(devices, REPORT, links_result, CONFIG_DIR)
 
-    # Генерация сетевой диаграммы
-    viz = NetworkVisualizer(
-        pattern_dir=DRAWIO_TEMPLATES, drawio_template=DRAWIO_TEMPLATES + "/base.drawio",
-        drawio_stencil_templates=STENCIL_TEMPLATES
-    )
 
     if links_result:
         print(f"⚠️  Создаю диаграмму\n")
-        
+
+        # Генерация сетевой диаграммы
+        viz = NetworkVisualizer(
+            pattern_dir=DRAWIO_TEMPLATES, drawio_template=DRAWIO_TEMPLATES + "/base.drawio",
+            drawio_stencil_templates=STENCIL_TEMPLATES
+        )
+
         # Выводим меню выбора алгоритма размещения
         print("Выберите алгоритм размещения объектов на диаграмме:")
         print("1. Круговой алгоритм (по умолчанию)")
