@@ -375,6 +375,7 @@ class NetworkVisualizer:
             network_data['x'] = 0
             network_data['y'] = 0
             network_data['pattern'] = source_type
+            network_data['label'] = network
             # Заменяем все символы, кроме цифр, на _
             clean_network_key = ''.join(c if c.isdigit() else '_' for c in network)
             network_list[clean_network_key] = network_data
@@ -566,13 +567,14 @@ class NetworkVisualizer:
         return objects
 
     @staticmethod
-    def layout_algorithm_circular(objects: dict, padding: int = 50) -> dict:
+    def layout_algorithm_circular(objects: dict, padding: int = 20, circular_padding: int = 500) -> dict:
         """
         Круговой алгоритм размещения объектов с вложенными кругами
 
         Args:
             objects (dict): Словарь с объектами {'devices': devices, 'networks': networks, 'links': links}
             padding (int): Паддинг вокруг объектов
+            circular_padding (int): Отступ между краями окружностей на которых размещаются элементы
 
         Returns:
             dict: Модифицированный словарь с проставленными координатами
@@ -625,51 +627,205 @@ class NetworkVisualizer:
             inner_radius = 0
             
         if n_outer > 0:
-            outer_radius = max((n_outer * (max_outer_size + padding)) / (2 * math.pi), inner_radius + max_outer_size + padding)
+            # Учитываем высоту элементов и circular_padding для избежания пересечений
+            outer_radius = max((n_outer * (max_outer_size + padding)) / (2 * math.pi), inner_radius + max(max_inner_size, max_outer_size) + circular_padding)
         else:
-            outer_radius = inner_radius + max_obj_size + padding
+            outer_radius = inner_radius + max_obj_size + circular_padding
 
         center_x, center_y = 0, 0
 
         # Размещаем внутренние объекты
         if n_inner > 0:
-            inner_angle_step = 2 * math.pi / n_inner if n_inner > 0 else 0
-            for i, obj_id in enumerate(inner_group.keys()):
-                angle = i * inner_angle_step
-                x = center_x + inner_radius * math.cos(angle) - inner_group[obj_id].get('width', 50) / 2
-                y = center_y + inner_radius * math.sin(angle) - inner_group[obj_id].get('height', 50) / 2
+            # Если внутренняя группа - это сети, то разделяем их на подгруппы по pattern
+            if inner_label == 'networks':
+                # Группируем сети по значению pattern
+                pattern_groups = {}
+                for obj_id, obj_data in inner_group.items():
+                    pattern_value = obj_data.get('pattern', 0)
+                    if pattern_value not in pattern_groups:
+                        pattern_groups[pattern_value] = []
+                    pattern_groups[pattern_value].append(obj_id)
+                
+                # Рассчитываем параметры для размещения подгрупп
+                n_patterns = len(pattern_groups)
+                if n_patterns > 1:
+                    # Размещаем каждую подгруппу на отдельном круге с общим центром
+                    # Рассчитываем радиусы для каждой подгруппы с учетом высоты элементов и circular_padding
+                    # Нужно учитывать максимальную высоту элементов в каждой группе
+                    pattern_max_heights = {}
+                    for pattern_val, pattern_networks in pattern_groups.items():
+                        max_h = 0
+                        for obj_id in pattern_networks:
+                            h = inner_group[obj_id].get('height', 50)
+                            max_h = max(max_h, h)
+                        pattern_max_heights[pattern_val] = max_h
+                    
+                    # Рассчитываем радиусы с учетом высоты элементов и circular_padding
+                    # Начинаем с минимального радиуса и увеличиваем его для каждой группы
+                    current_radius = circular_padding  # Минимальный радиус
+                    for idx, (pattern_val, pattern_networks) in enumerate(pattern_groups.items()):
+                        n_subgroup = len(pattern_networks)
+                        if n_subgroup > 0:
+                            # Рассчитываем радиус для этой подгруппы с учетом высоты элементов
+                            max_height = pattern_max_heights[pattern_val]
+                            
+                            subgroup_radius = current_radius
+                            subgroup_angle_step = 2 * math.pi / n_subgroup
+                            
+                            for j, obj_id in enumerate(pattern_networks):
+                                angle = j * subgroup_angle_step
+                                x = center_x + subgroup_radius * math.cos(angle) - inner_group[obj_id].get('width', 50) / 2
+                                y = center_y + subgroup_radius * math.sin(angle) - inner_group[obj_id].get('height', 50) / 2
 
-                # Округляем координаты до ближайшего целого
-                x = round(x)
-                y = round(y)
+                                # Округляем координаты до ближайшего целого
+                                x = round(x)
+                                y = round(y)
 
-                # Обновляем координаты в соответствующем словаре
-                if inner_label == 'devices':
+                                objects['networks'][obj_id]['x'] = x
+                                objects['networks'][obj_id]['y'] = y
+                            
+                            # Увеличиваем радиус для следующей группы
+                            current_radius += max_height + circular_padding
+                        else:
+                            # Если в подгруппе нет элементов, размещаем в центре
+                            obj_id = pattern_networks[0]
+                            x = center_x - inner_group[obj_id].get('width', 50) / 2
+                            y = center_y - inner_group[obj_id].get('height', 50) / 2
+
+                            # Округляем координаты до ближайшего целого
+                            x = round(x)
+                            y = round(y)
+
+                            objects['networks'][obj_id]['x'] = x
+                            objects['networks'][obj_id]['y'] = y
+                else:
+                    # Если только одна группа по pattern, размещаем как обычно
+                    inner_angle_step = 2 * math.pi / n_inner if n_inner > 0 else 0
+                    for i, obj_id in enumerate(inner_group.keys()):
+                        angle = i * inner_angle_step
+                        x = center_x + inner_radius * math.cos(angle) - inner_group[obj_id].get('width', 50) / 2
+                        y = center_y + inner_radius * math.sin(angle) - inner_group[obj_id].get('height', 50) / 2
+
+                        # Округляем координаты до ближайшего целого
+                        x = round(x)
+                        y = round(y)
+
+                        # Обновляем координаты в соответствующем словаре
+                        objects['networks'][obj_id]['x'] = x
+                        objects['networks'][obj_id]['y'] = y
+            else:
+                # Если внутренняя группа - устройства, размещаем как обычно
+                inner_angle_step = 2 * math.pi / n_inner if n_inner > 0 else 0
+                for i, obj_id in enumerate(inner_group.keys()):
+                    angle = i * inner_angle_step
+                    x = center_x + inner_radius * math.cos(angle) - inner_group[obj_id].get('width', 50) / 2
+                    y = center_y + inner_radius * math.sin(angle) - inner_group[obj_id].get('height', 50) / 2
+
+                    # Округляем координаты до ближайшего целого
+                    x = round(x)
+                    y = round(y)
+
+                    # Обновляем координаты в соответствующем словаре
                     objects['devices'][obj_id]['x'] = x
                     objects['devices'][obj_id]['y'] = y
-                else:
-                    objects['networks'][obj_id]['x'] = x
-                    objects['networks'][obj_id]['y'] = y
 
         # Размещаем внешние объекты
         if n_outer > 0:
-            outer_angle_step = 2 * math.pi / n_outer if n_outer > 0 else 0
-            for i, obj_id in enumerate(outer_group.keys()):
-                angle = i * outer_angle_step
-                x = center_x + outer_radius * math.cos(angle) - outer_group[obj_id].get('width', 50) / 2
-                y = center_y + outer_radius * math.sin(angle) - outer_group[obj_id].get('height', 50) / 2
+            # Если внешняя группа - это сети, то разделяем их на подгруппы по pattern
+            if outer_label == 'networks':
+                # Группируем сети по значению pattern
+                pattern_groups = {}
+                for obj_id, obj_data in outer_group.items():
+                    pattern_value = obj_data.get('pattern', 0)
+                    if pattern_value not in pattern_groups:
+                        pattern_groups[pattern_value] = []
+                    pattern_groups[pattern_value].append(obj_id)
+                
+                # Рассчитываем параметры для размещения подгрупп
+                n_patterns = len(pattern_groups)
+                if n_patterns > 1:
+                    # Размещаем каждую подгруппу на отдельном круге с общим центром
+                    # Рассчитываем радиусы для каждой подгруппы с учетом высоты элементов и circular_padding
+                    # Нужно учитывать максимальную высоту элементов в каждой группе
+                    pattern_max_heights = {}
+                    for pattern_val, pattern_networks in pattern_groups.items():
+                        max_h = 0
+                        for obj_id in pattern_networks:
+                            h = outer_group[obj_id].get('height', 50)
+                            max_h = max(max_h, h)
+                        pattern_max_heights[pattern_val] = max_h
+                    
+                    # Рассчитываем радиусы с учетом высоты элементов и circular_padding
+                    # Начинаем с минимального радиуса и увеличиваем его для каждой группы
+                    current_radius = outer_radius - (sum(pattern_max_heights.values()) + (n_patterns - 1) * circular_padding)
+                    if current_radius < 0:
+                        current_radius = circular_padding  # Минимальный радиус
+                    
+                    for idx, (pattern_val, pattern_networks) in enumerate(pattern_groups.items()):
+                        n_subgroup = len(pattern_networks)
+                        if n_subgroup > 0:
+                            # Рассчитываем радиус для этой подгруппы с учетом высоты элементов
+                            max_height = pattern_max_heights[pattern_val]
+                            
+                            subgroup_radius = current_radius
+                            subgroup_angle_step = 2 * math.pi / n_subgroup
+                            
+                            for j, obj_id in enumerate(pattern_networks):
+                                angle = j * subgroup_angle_step
+                                x = center_x + subgroup_radius * math.cos(angle) - outer_group[obj_id].get('width', 50) / 2
+                                y = center_y + subgroup_radius * math.sin(angle) - outer_group[obj_id].get('height', 50) / 2
 
-                # Округляем координаты до ближайшего целого
-                x = round(x)
-                y = round(y)
+                                # Округляем координаты до ближайшего целого
+                                x = round(x)
+                                y = round(y)
 
-                # Обновляем координаты в соответствующем словаре
-                if outer_label == 'devices':
+                                objects['networks'][obj_id]['x'] = x
+                                objects['networks'][obj_id]['y'] = y
+                            
+                            # Увеличиваем радиус для следующей группы
+                            current_radius += max_height + circular_padding
+                        else:
+                            # Если в подгруппе нет элементов, размещаем в центре
+                            obj_id = pattern_networks[0]
+                            x = center_x - outer_group[obj_id].get('width', 50) / 2
+                            y = center_y - outer_group[obj_id].get('height', 50) / 2
+
+                            # Округляем координаты до ближайшего целого
+                            x = round(x)
+                            y = round(y)
+
+                            objects['networks'][obj_id]['x'] = x
+                            objects['networks'][obj_id]['y'] = y
+                else:
+                    # Если только одна группа по pattern, размещаем как обычно
+                    outer_angle_step = 2 * math.pi / n_outer if n_outer > 0 else 0
+                    for i, obj_id in enumerate(outer_group.keys()):
+                        angle = i * outer_angle_step
+                        x = center_x + outer_radius * math.cos(angle) - outer_group[obj_id].get('width', 50) / 2
+                        y = center_y + outer_radius * math.sin(angle) - outer_group[obj_id].get('height', 50) / 2
+
+                        # Округляем координаты до ближайшего целого
+                        x = round(x)
+                        y = round(y)
+
+                        # Обновляем координаты в соответствующем словаре
+                        objects['networks'][obj_id]['x'] = x
+                        objects['networks'][obj_id]['y'] = y
+            else:
+                # Если внешняя группа - устройства, размещаем как обычно
+                outer_angle_step = 2 * math.pi / n_outer if n_outer > 0 else 0
+                for i, obj_id in enumerate(outer_group.keys()):
+                    angle = i * outer_angle_step
+                    x = center_x + outer_radius * math.cos(angle) - outer_group[obj_id].get('width', 50) / 2
+                    y = center_y + outer_radius * math.sin(angle) - outer_group[obj_id].get('height', 50) / 2
+
+                    # Округляем координаты до ближайшего целого
+                    x = round(x)
+                    y = round(y)
+
+                    # Обновляем координаты в соответствующем словаре
                     objects['devices'][obj_id]['x'] = x
                     objects['devices'][obj_id]['y'] = y
-                else:
-                    objects['networks'][obj_id]['x'] = x
-                    objects['networks'][obj_id]['y'] = y
 
         return objects
 
@@ -1004,13 +1160,10 @@ class NetworkVisualizer:
                         y_pos=obj_data.get('y', 0),
                         width=obj_data.get('width', 100),
                         height=obj_data.get('height', 50),
-                        style=obj_data.get('style', '')
+                        style=obj_data.get('style', ''),
+                        label=obj_data.get('label', obj_id)
                     )
                     added += 1
-
-                    # Сохраняем отладочную печать только для устройств (как в оригинале)
-                    if obj_key == 'devices':
-                        print(obj_id)
 
                 except Exception as e:
                     errors += 1
