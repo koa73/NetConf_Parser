@@ -518,12 +518,14 @@ class NetworkTopologyAnalyzer:
             for intf in mgmt_ifs:
                 mgmt_interfaces.append([
                     device_name,
+                    device.get('vendor', 'unknown'),  # Add vendor
+                    device.get('device_type', 'unknown'),  # Add type
                     intf['interface'],
                     intf['ip'],
                     intf['network_cidr']
                 ])
 
-        mgmt_interfaces.sort(key=lambda x: (x[3], x[0]))
+        mgmt_interfaces.sort(key=lambda x: (x[5], x[0]))  # Sort by network_cidr then device_name
         return mgmt_interfaces
 
     @staticmethod
@@ -532,6 +534,16 @@ class NetworkTopologyAnalyzer:
         logical_links = []
         processed_networks: Set[str] = set()
         processed_vni_pairs: Set[Tuple[str, str, int]] = set()
+
+        # Создание маппинга имени устройства к его вендору и типу
+        device_metadata: Dict[str, Dict[str, str]] = {
+            device['device_name']: {
+                'vendor': device['vendor'],
+                'device_type': device['device_type']
+            }
+            for device in devices_data
+            if device['device_name'] != 'unknown'
+        }
 
         # Сбор всех интерфейсов
         all_interfaces: Dict[str, List[Dict[str, Any]]] = {}
@@ -560,10 +572,19 @@ class NetworkTopologyAnalyzer:
                 for j in range(i + 1, len(endpoints)):
                     dev1_name, intf1 = endpoints[i]
                     dev2_name, intf2 = endpoints[j]
+
+                    # Получаем метаданные устройств
+                    dev1_meta = device_metadata.get(dev1_name, {'vendor': 'N/A', 'device_type': 'N/A'})
+                    dev2_meta = device_metadata.get(dev2_name, {'vendor': 'N/A', 'device_type': 'N/A'})
+
                     logical_links.append([
                         dev1_name,
+                        dev1_meta['vendor'],
+                        dev1_meta['device_type'],
                         f"{intf1['interface']}/{intf1['ip']}",
                         dev2_name,
+                        dev2_meta['vendor'],
+                        dev2_meta['device_type'],
                         f"{intf2['interface']}/{intf2['ip']}",
                         f"Service Network: {network_cidr}"
                     ])
@@ -594,10 +615,18 @@ class NetworkTopologyAnalyzer:
                         if pair_key in processed_vni_pairs:
                             continue
                         processed_vni_pairs.add(pair_key)
+                        # Получаем метаданные устройств
+                        dev1_meta = device_metadata.get(dev1_name, {'vendor': 'N/A', 'device_type': 'N/A'})
+                        dev2_meta = device_metadata.get(dev2_name, {'vendor': 'N/A', 'device_type': 'N/A'})
+
                         logical_links.append([
                             dev1_name,
+                            dev1_meta['vendor'],
+                            dev1_meta['device_type'],
                             f"{intf1['interface']}/{intf1['ip']}",
                             dev2_name,
+                            dev2_meta['vendor'],
+                            dev2_meta['device_type'],
                             f"{intf2['interface']}/{intf2['ip']}",
                             f"VXLAN VNI {vni} (Overlay)"
                         ])
@@ -618,10 +647,18 @@ class NetworkTopologyAnalyzer:
             processed_networks.add(network_cidr)
             dev1_name, intf1 = endpoints[0]
             dev2_name, intf2 = endpoints[1]
+            # Получаем метаданные устройств
+            dev1_meta = device_metadata.get(dev1_name, {'vendor': 'N/A', 'device_type': 'N/A'})
+            dev2_meta = device_metadata.get(dev2_name, {'vendor': 'N/A', 'device_type': 'N/A'})
+
             logical_links.append([
                 dev1_name,
+                dev1_meta['vendor'],
+                dev1_meta['device_type'],
                 f"{intf1['interface']}/{intf1['ip']}",
                 dev2_name,
+                dev2_meta['vendor'],
+                dev2_meta['device_type'],
                 f"{intf2['interface']}/{intf2['ip']}",
                 f"Logical P2P: {network_cidr}"
             ])
@@ -700,21 +737,30 @@ class ReportGenerator:
 
         # Управленческие сети
         mgmt = result.get("mgmt_networks", [])
-        print("\n" + "=" * 100)
+        print("\n" + "=" * 130)
         print("🖥️  УПРАВЛЕНЧЕСКИЕ ИНТЕРФЕЙСЫ (Management Networks)")
-        print("=" * 100)
+        print("=" * 130)
         if mgmt:
-            print(f"{'Устройство':<25} | {'Интерфейс':<18} | {'IP адрес':<16} | {'Сеть':<20}")
-            print("-" * 100)
+            print(f"{'Устройство':<25} | {'Вендор':<15} | {'Тип':<15} | {'Интерфейс':<18} | {'IP адрес':<16} | {'Сеть':<20}")
+            print("-" * 130)
             for entry in mgmt:
-                dev, intf, ip, net = entry
-                print(f"{dev:<25} | {intf:<18} | {ip:<16} | {net:<20}")
+                if len(entry) >= 6:
+                    dev, vendor, dev_type, intf, ip, net = entry
+                    print(f"{dev:<25} | {vendor:<15} | {dev_type:<15} | {intf:<18} | {ip:<16} | {net:<20}")
+                else:
+                    # Fallback for backward compatibility
+                    dev, intf, ip, net = entry
+                    print(f"{dev:<25} | {'':<15} | {'':<15} | {intf:<18} | {ip:<16} | {net:<20}")
             print(f"\n✅ Всего управленческих интерфейсов: {len(mgmt)}")
 
             networks = {}
             for entry in mgmt:
-                net = entry[3]
-                networks.setdefault(net, []).append(f"{entry[0]} ({entry[2]})")
+                if len(entry) >= 6:
+                    net = entry[5]
+                    networks.setdefault(net, []).append(f"{entry[0]} ({entry[4]})")
+                else:
+                    net = entry[3]
+                    networks.setdefault(net, []).append(f"{entry[0]} ({entry[2]})")
 
             print("\nГруппировка по сетям управления:")
             for net, devices in sorted(networks.items()):
@@ -724,21 +770,37 @@ class ReportGenerator:
 
         # Логические связи
         logical = result.get("logical_links", [])
-        print("\n" + "=" * 130)
+        print("\n" + "=" * 160)
         print("🌐 ЛОГИЧЕСКИЕ СВЯЗИ (Logical Links: VXLAN Overlay, Service Networks)")
-        print("=" * 130)
+        print("=" * 160)
         if logical:
-            print(f"{'Устройство 1':<25} | {'Интерфейс/IP':<25} | {'Устройство 2':<25} | "
-                  f"{'Интерфейс/IP':<25} | {'Тип связи':<35}")
-            print("-" * 130)
+            print(f"{'Устройство 1':<25} | {'Вендор':<12} | {'Тип':<15} | {'Интерфейс/IP':<25} | {'Устройство 2':<25} | {'Вендор':<12} | {'Тип':<15} | {'Интерфейс/IP':<25} | {'Тип связи':<35}")
+            print("-" * 160)
             for link in logical:
-                dev1, intf_ip1, dev2, intf_ip2, desc = link
-                print(f"{dev1:<25} | {intf_ip1:<25} | {dev2:<25} | {intf_ip2:<25} | {desc:<35}")
+                if len(link) >= 9:
+                    dev1, vendor1, type1, intf_ip1, dev2, vendor2, type2, intf_ip2, desc = link
+                    print(f"{dev1:<25} | {vendor1:<12} | {type1:<15} | {intf_ip1:<25} | {dev2:<25} | {vendor2:<12} | {type2:<15} | {intf_ip2:<25} | {desc:<35}")
+                else:
+                    # Fallback for backward compatibility
+                    dev1, intf_ip1, dev2, intf_ip2, desc = link
+                    print(f"{dev1:<25} | {'':<12} | {'':<15} | {intf_ip1:<25} | {dev2:<25} | {'':<12} | {'':<15} | {intf_ip2:<25} | {desc:<35}")
             print(f"\n✅ Всего логических связей: {len(logical)}")
 
-            vxlan_count = sum(1 for l in logical if 'VXLAN' in l[4])
-            service_count = sum(1 for l in logical if 'Service Network' in l[4])
-            p2p_count = sum(1 for l in logical if 'Logical P2P' in l[4])
+            # Calculate statistics considering the new structure
+            vxlan_count = 0
+            service_count = 0
+            p2p_count = 0
+            for l in logical:
+                if len(l) >= 9:
+                    desc = l[8]  # Description is at index 8 in new structure
+                else:
+                    desc = l[4]  # Description is at index 4 in old structure
+                if 'VXLAN' in desc:
+                    vxlan_count += 1
+                if 'Service Network' in desc:
+                    service_count += 1
+                if 'Logical P2P' in desc:
+                    p2p_count += 1
 
             print("\nСтатистика логических связей:")
             if vxlan_count:
@@ -817,21 +879,30 @@ class ReportGenerator:
 
             # Управленческие сети
             mgmt = links_result.get("mgmt_networks", [])
-            f.write("\n" + "=" * 100 + "\n")
+            f.write("\n" + "=" * 130 + "\n")
             f.write(" 🖥️  УПРАВЛЕНЧЕСКИЕ ИНТЕРФЕЙСЫ (Management Networks)\n")
-            f.write("=" * 100 + "\n")
+            f.write("=" * 130 + "\n")
             if mgmt:
-                f.write(f"{'Устройство':<25} | {'Интерфейс':<18} | {'IP адрес':<16} | {'Сеть':<20}\n")
-                f.write("-" * 100 + "\n")
+                f.write(f"{'Устройство':<25} | {'Вендор':<15} | {'Тип':<15} | {'Интерфейс':<18} | {'IP адрес':<16} | {'Сеть':<20}\n")
+                f.write("-" * 130 + "\n")
                 for entry in mgmt:
-                    dev, intf, ip, net = entry
-                    f.write(f"{dev:<25} | {intf:<18} | {ip:<16} | {net:<20}\n")
+                    if len(entry) >= 6:
+                        dev, vendor, dev_type, intf, ip, net = entry
+                        f.write(f"{dev:<25} | {vendor:<15} | {dev_type:<15} | {intf:<18} | {ip:<16} | {net:<20}\n")
+                    else:
+                        # Fallback for backward compatibility
+                        dev, intf, ip, net = entry
+                        f.write(f"{dev:<25} | {'':<15} | {'':<15} | {intf:<18} | {ip:<16} | {net:<20}\n")
                 f.write(f"\n✅ Всего управленческих интерфейсов: {len(mgmt)}\n")
 
                 networks = {}
                 for entry in mgmt:
-                    net = entry[3]
-                    networks.setdefault(net, []).append(f"{entry[0]} ({entry[2]})")
+                    if len(entry) >= 6:
+                        net = entry[5]
+                        networks.setdefault(net, []).append(f"{entry[0]} ({entry[4]})")
+                    else:
+                        net = entry[3]
+                        networks.setdefault(net, []).append(f"{entry[0]} ({entry[2]})")
 
                 f.write("\nГруппировка по сетям управления:\n")
                 for net, devices in sorted(networks.items()):
@@ -841,21 +912,37 @@ class ReportGenerator:
 
             # Логические связи
             logical = links_result.get("logical_links", [])
-            f.write("\n" + "=" * 130 + "\n")
+            f.write("\n" + "=" * 160 + "\n")
             f.write(" 🌐 ЛОГИЧЕСКИЕ СВЯЗИ (Logical Links: VXLAN Overlay, Service Networks)\n")
-            f.write("=" * 130 + "\n")
+            f.write("=" * 160 + "\n")
             if logical:
-                f.write(f"{'Устройство 1':<25} | {'Интерфейс/IP':<25} | {'Устройство 2':<25} | "
-                        f"{'Интерфейс/IP':<25} | {'Тип связи':<35}\n")
-                f.write("-" * 130 + "\n")
+                f.write(f"{'Устройство 1':<25} | {'Вендор':<12} | {'Тип':<15} | {'Интерфейс/IP':<25} | {'Устройство 2':<25} | {'Вендор':<12} | {'Тип':<15} | {'Интерфейс/IP':<25} | {'Тип связи':<35}\n")
+                f.write("-" * 160 + "\n")
                 for link in logical:
-                    dev1, intf_ip1, dev2, intf_ip2, desc = link
-                    f.write(f"{dev1:<25} | {intf_ip1:<25} | {dev2:<25} | {intf_ip2:<25} | {desc:<35}\n")
+                    if len(link) >= 9:
+                        dev1, vendor1, type1, intf_ip1, dev2, vendor2, type2, intf_ip2, desc = link
+                        f.write(f"{dev1:<25} | {vendor1:<12} | {type1:<15} | {intf_ip1:<25} | {dev2:<25} | {vendor2:<12} | {type2:<15} | {intf_ip2:<25} | {desc:<35}\n")
+                    else:
+                        # Fallback for backward compatibility
+                        dev1, intf_ip1, dev2, intf_ip2, desc = link
+                        f.write(f"{dev1:<25} | {'':<12} | {'':<15} | {intf_ip1:<25} | {dev2:<25} | {'':<12} | {'':<15} | {intf_ip2:<25} | {desc:<35}\n")
                 f.write(f"\n✅ Всего логических связей: {len(logical)}\n")
 
-                vxlan_count = sum(1 for l in logical if 'VXLAN' in l[4])
-                service_count = sum(1 for l in logical if 'Service Network' in l[4])
-                p2p_count = sum(1 for l in logical if 'Logical P2P' in l[4])
+                # Calculate statistics considering the new structure
+                vxlan_count = 0
+                service_count = 0
+                p2p_count = 0
+                for l in logical:
+                    if len(l) >= 9:
+                        desc = l[8]  # Description is at index 8 in new structure
+                    else:
+                        desc = l[4]  # Description is at index 4 in old structure
+                    if 'VXLAN' in desc:
+                        vxlan_count += 1
+                    if 'Service Network' in desc:
+                        service_count += 1
+                    if 'Logical P2P' in desc:
+                        p2p_count += 1
 
                 f.write("\nСтатистика логических связей:\n")
                 if vxlan_count:
