@@ -290,15 +290,116 @@ class NetworkVisualizer:
 
         return device_list
 
+    @staticmethod
+    def generate_network_list(data: Dict[str, Any], patterns: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Процедура формирования перечня уникальных сетей на основе словарей
+        и формирующей словарь где в качестве ключа используется ip_mask
+        а в качестве шаблона используется данные шаблона ключ network
+
+        Args:
+            data (dict): Словарь с результатами линков, содержащий physical_links, mgmt_networks и logical_links
+            patterns (dict): Словарь шаблонов устройств
+
+        Returns:
+            dict: Словарь в формате {ip_mask: {данные_из_шаблона_network + дополнительные_поля}}
+        """
+        network_list = {}
+
+        # Извлекаем уникальные сети из physical_links, mgmt_networks и logical_links
+        network_sources = {}  # Словарь для отслеживания источников сетей
+
+        # Обработка physical_links
+        # Структура: [device1, vendor1, type1, interface1, ip1, device2, vendor2, type2, interface2, ip2, network]
+        if 'physical_links' in data:
+            for link in data['physical_links']:
+                if len(link) >= 11:  # Проверяем, что список содержит достаточно элементов
+                    network = link[10]  # Последний элемент - сеть
+                    if network not in network_sources:
+                        network_sources[network] = 1  # physical_links
+                    elif network_sources[network] != 1:  # Если сеть уже была найдена не в physical_links
+                        network_sources[network] = 2  # Обычная сеть (не только logical)
+
+        # Обработка mgmt_networks
+        # Структура: [device, vendor, type, interface, ip, network]
+        if 'mgmt_networks' in data:
+            for network_entry in data['mgmt_networks']:
+                if len(network_entry) >= 6:  # Проверяем, что список содержит достаточно элементов
+                    network = network_entry[5]  # Последний элемент - сеть
+                    if network not in network_sources:
+                        network_sources[network] = 2  # mgmt_networks (обычная сеть)
+                    elif network_sources[network] != 1:  # Если сеть уже была найдена не в physical_links
+                        # Оставляем текущее значение, если это не physical_links
+                        pass
+
+        # Обработка logical_links
+        # Структура: [device1, vendor1, type1, interface1, device2, vendor2, type2, interface2, link_type]
+        # Сети в logical_links могут быть представлены в link_type или других элементах
+        # В текущем формате, сеть может быть частью link_type, например "Service Network: 172.23.197.0/24"
+        if 'logical_links' in data:
+            for link in data['logical_links']:
+                if len(link) >= 9:  # Проверяем, что список содержит достаточно элементов
+                    link_type = link[8]  # Последний элемент - тип связи
+                    # Извлекаем сеть из строки типа связи, если она там содержится
+                    if 'Network:' in link_type:
+                        # Извлекаем маску сети из строки вида "Service Network: 172.23.197.0/24"
+                        parts = link_type.split(':')
+                        if len(parts) >= 2:
+                            network = parts[1].strip()
+                            if network not in network_sources:
+                                network_sources[network] = 3  # Только logical_links
+                            elif network_sources[network] != 1:  # Если не в physical_links
+                                if network_sources[network] == 3:  # Если была только в logical
+                                    # Если теперь встречается в других местах, становится обычной сетью
+                                    network_sources[network] = 2
+                                # Иначе оставляем как есть
+
+        # Теперь формируем словарь сетей с шаблонами
+        # Получаем шаблон network из словаря patterns
+        network_template = None
+        
+        # Ищем шаблон network в словаре patterns
+        for vendor, vendor_patterns in patterns.items():
+            for pattern in vendor_patterns:
+                for device_type, template_data in pattern.items():
+                    if device_type.lower() == 'network':
+                        network_template = template_data
+                        break
+                if network_template:
+                    break
+            if network_template:
+                break
+
+        # Если шаблон network не найден, используем fallback
+        if not network_template:
+            network_template = {
+                'height': 20,
+                'width': 200,
+                'style': 'style="verticalAlign=middle;align=center;vsdxID=35397;rotation=270;fillColor=#c0cfe2;gradientColor=none;shape=stencil(nZFLDsIwDERP4y0KyQKxLuUCnCAihliEpEpL+ZyetANS6YJFs7JnXmxpTKZqvW2YtGq7nC58F9d5MjvSWqLnLF2pyNRkqlPKfM7pFh36xhZSq1Fhhz/rgdbK5uNBXgxts9r+PjAYck39sPwBVMF6foYp9HugQeIE/ZqL4D/oQnC2vhRjPAhOQkC6U38eZ5FwClO/AQ==);strokeColor=#000000;labelBackgroundColor=none;rounded=1;html=1;whiteSpace=wrap;"'
+            }
+
+        # Формируем итоговый словарь
+        for network, source_type in network_sources.items():
+            # Копируем шаблон и добавляем дополнительные поля
+            network_data = network_template.copy()
+            network_data['x'] = 0
+            network_data['y'] = 0
+            network_data['pattern'] = source_type
+            network_list[network] = network_data
+
+        return network_list
+
     def prepare_stencils(self, data : Dict[str, Any]):
 
         # 1. Формируем словари шаблонов
         patterns = self.merge_yaml_files()
-        print(f'===>\n {patterns}')
 
         # 2. Формируем перечень устройств для размещения на диаграмме
         devices = self.generate_device_list(data=data, patterns=patterns)
 
-        print(f'{devices}')
+        # 3. Формируем перечень сетей для размещения на диаграмме
+        networks = self.generate_network_list(data=data, patterns=patterns)
+
+        print(f'{networks}')
 
 
