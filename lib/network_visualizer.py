@@ -159,6 +159,6 @@ class NetworkVisualizer:
         return result
 
     def prepare_stencils(self, links: Dict[str, Any]):
-        print(self.merge_yaml_files()['common'])
+        print(self.merge_yaml_files())
 
 
