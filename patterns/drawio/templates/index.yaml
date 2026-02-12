@@ -36,3 +36,5 @@ templates:
     - logical_link: logical_link
     - mgm_link: mgm_link
     - physical_link: physical_link
+  default:
+    - any : default

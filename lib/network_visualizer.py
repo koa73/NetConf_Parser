@@ -158,7 +158,8 @@ class NetworkVisualizer:
 
         return result
 
-    def generate_device_list(self, data: Dict[str, Any], patterns: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def generate_device_list(data: Dict[str, Any], patterns: Dict[str, Any]) -> Dict[str, Any]:
         """
         Процедура формирования списка устройств на основе link_result и merge_yaml_files
 
@@ -255,14 +256,37 @@ class NetworkVisualizer:
                         # pattern - это словарь в формате {device_type: template_data}
                         for key, template_data in pattern.items():
                             if key.lower() == device_type.lower():
-                                device_list[device_name] = template_data.copy()
+                                # Копируем шаблон и добавляем дополнительные поля
+                                device_data = template_data.copy()
+                                device_data['x'] = 0
+                                device_data['y'] = 0
+                                device_data['data'] = {}
+                                device_list[device_name] = device_data
                                 break
                         else:
                             continue  # только если внутренний цикл не был прерван
                         break  # выйти из внешнего цикла, если шаблон найден
             else:
-                # Если не удалось определить vendor и type, добавляем пустой словарь
-                device_list[device_name] = {}
+                # Если не удалось определить vendor и type, используем шаблон default из словаря patterns
+                # Предполагаем, что шаблон по умолчанию всегда есть в словаре patterns под ключом 'default'
+                default_template = None
+                
+                # Получаем шаблон по умолчанию из ключа 'default'
+                if 'default' in patterns:
+                    default_patterns = patterns['default']
+                    if isinstance(default_patterns, list) and len(default_patterns) > 0:
+                        first_pattern = default_patterns[0]
+                        if isinstance(first_pattern, dict):
+                            for device_type, template_data in first_pattern.items():
+                                default_template = template_data
+                                break
+                
+                # Добавляем дополнительные поля к шаблону
+                device_data = default_template.copy() if default_template else {}
+                device_data['x'] = 0
+                device_data['y'] = 0
+                device_data['data'] = {}
+                device_list[device_name] = device_data
 
         return device_list
 
@@ -270,6 +294,7 @@ class NetworkVisualizer:
 
         # 1. Формируем словари шаблонов
         patterns = self.merge_yaml_files()
+        print(f'===>\n {patterns}')
 
         # 2. Формируем перечень устройств для размещения на диаграмме
         devices = self.generate_device_list(data=data, patterns=patterns)
