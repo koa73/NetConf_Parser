@@ -40,7 +40,7 @@ class NetworkVisualizer:
             sys.exit(1)
 
     @staticmethod
-    def read_yaml_file(filepath: str) -> Dict[str, Any]:
+    def _read_yaml_file(filepath: str) -> Dict[str, Any]:
         """
         Статический метод для чтения YAML-файла.
         При ошибке завершает программу с кодом 1.
@@ -539,6 +539,9 @@ class NetworkVisualizer:
         # 3. Формируем перечень сетей для размещения на диаграмме
         networks = self.generate_network_list(data=data, patterns=patterns)
 
-        print(f'{networks}')
+        # 4. Формируем перечень линков
+        links = self.generate_links(data=data, patterns=patterns)
+
+        print(f'{links}')
 
 
