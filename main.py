@@ -51,11 +51,28 @@ def main():
 
     if links_result:
         print(f"⚠️  Создаю диаграмму\n")
-        #templates = viz.load_stencil_templates(links_result)
-        #object_list = viz.make_object_list(links_result, templates)
-        print(links_result)
-        print("\n\n")
-        viz.prepare_stencils(links_result)
+        
+        # Выводим меню выбора алгоритма размещения
+        print("Выберите алгоритм размещения объектов на диаграмме:")
+        print("1. Круговой алгоритм (по умолчанию)")
+        print("2. Сеточный алгоритм")
+        print("3. Силовой алгоритм")
+        print("4. Кластерный алгоритм")
+        print("Нажмите Enter для выбора алгоритма по умолчанию (круговой)")
+        
+        choice = input("Введите номер алгоритма (1-4) или нажмите Enter: ").strip()
+        
+        # Определяем название алгоритма на основе выбора пользователя
+        algorithm_map = {
+            '1': 'circular',
+            '2': 'grid',
+            '3': 'force_directed',
+            '4': 'clustered'
+        }
+        
+        layout_algorithm = algorithm_map.get(choice, 'circular')  # По умолчанию круговой
+        
+        viz.prepare_stencils(links_result, layout_algorithm=layout_algorithm)
 
 
 if __name__ == "__main__":

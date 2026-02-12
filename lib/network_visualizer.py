@@ -114,9 +114,6 @@ class NetworkVisualizer:
         Reads index.yaml file, reads devices.yaml from the same directory,
         and replaces string values in index with corresponding dictionaries from devices.yaml.
 
-        Args:
-            index_path: Path to the index.yaml file
-
         Returns:
             Dictionary with merged data
         """
@@ -385,7 +382,9 @@ class NetworkVisualizer:
             network_data['x'] = 0
             network_data['y'] = 0
             network_data['pattern'] = source_type
-            network_list[network] = network_data
+            # Заменяем все символы, кроме цифр, на _
+            clean_network_key = ''.join(c if c.isdigit() else '_' for c in network)
+            network_list[clean_network_key] = network_data
 
         return network_list
 
@@ -430,11 +429,14 @@ class NetworkVisualizer:
                     style_data = link_styles.get('physical_link', {})
                     style = style_data.get('style', '')
                     
+                    # Заменяем все символы, кроме цифр, на _ в target
+                    clean_network = ''.join(c if c.isdigit() else '_' for c in network)
+                    
                     # Создаем два соединения: от device1 к network и от device2 к network
                     # Соединение от device1 к network
                     link_dict1 = {
                         'source': device1,
-                        'target': network,
+                        'target': clean_network,
                         'style': style,
                         'label': ip1,
                         'data': None,
@@ -445,7 +447,7 @@ class NetworkVisualizer:
                     # Соединение от device2 к network
                     link_dict2 = {
                         'source': device2,
-                        'target': network,
+                        'target': clean_network,
                         'style': style,
                         'label': ip2,
                         'data': None,
@@ -467,10 +469,13 @@ class NetworkVisualizer:
                     style_data = link_styles.get('mgm_link', {})
                     style = style_data.get('style', '')
                     
+                    # Заменяем все символы, кроме цифр, на _ в target
+                    clean_network = ''.join(c if c.isdigit() else '_' for c in network)
+                    
                     # Создаем соединение от устройства к упр. сети
                     link_dict = {
                         'source': device,
-                        'target': network,
+                        'target': clean_network,
                         'style': style,
                         'label': ip,
                         'data': None,
@@ -503,11 +508,14 @@ class NetworkVisualizer:
                     style_data = link_styles.get('logical_link', {})
                     style = style_data.get('style', '')
                     
+                    # Заменяем все символы, кроме цифр, на _ в target
+                    clean_network = ''.join(c if c.isdigit() else '_' for c in network)
+                    
                     # Создаем два соединения: от device1 к network и от device2 к network
                     # Соединение от device1 к network
                     link_dict1 = {
                         'source': device1,
-                        'target': network,
+                        'target': clean_network,
                         'style': style,
                         'label': ip1,
                         'data': None,
@@ -518,7 +526,7 @@ class NetworkVisualizer:
                     # Соединение от device2 к network
                     link_dict2 = {
                         'source': device2,
-                        'target': network,
+                        'target': clean_network,
                         'style': style,
                         'label': ip2,
                         'data': None,
@@ -528,7 +536,7 @@ class NetworkVisualizer:
 
         return links
 
-    def prepare_stencils(self, data : Dict[str, Any]):
+    def prepare_stencils(self, data : Dict[str, Any], layout_algorithm: str = 'circular'):
 
         # 1. Формируем словари шаблонов
         patterns = self.merge_yaml_files()
@@ -542,6 +550,379 @@ class NetworkVisualizer:
         # 4. Формируем перечень линков
         links = self.generate_links(data=data, patterns=patterns)
 
+        # 5. Подготавливаем объекты для алгоритма размещения
+        objects = {
+            'devices': devices,
+            'networks': networks,
+            'links': links
+        }
+
+        # 6. Вызываем выбранный алгоритм размещения
+        if layout_algorithm == 'circular':
+            objects = self.layout_algorithm_circular(objects)
+        elif layout_algorithm == 'grid':
+            objects = self.layout_algorithm_grid(objects)
+        elif layout_algorithm == 'force_directed':
+            objects = self.layout_algorithm_force_directed(objects)
+        elif layout_algorithm == 'clustered':
+            objects = self.layout_algorithm_clustered(objects)
+        else:
+            # По умолчанию используем круговой алгоритм
+            objects = self.layout_algorithm_circular(objects)
+
+        devices = objects['devices']
+        networks = objects['networks']
+
         print(f'{links}')
+        links = self.generate_links(data=data, patterns=patterns)
+
+
+
+    def layout_algorithm_circular(self, objects: dict, padding: int = 50) -> dict:
+        """
+        Круговой алгоритм размещения объектов
+        
+        Args:
+            objects (dict): Словарь с объектами {'devices': devices, 'networks': networks, 'links': links}
+            padding (int): Паддинг вокруг объектов
+            
+        Returns:
+            dict: Модифицированный словарь с проставленными координатами
+        """
+        import math
+        
+        all_objects = {}
+        all_objects.update(objects['devices'])
+        all_objects.update(objects['networks'])
+        
+        n = len(all_objects)
+        if n == 0:
+            return objects
+            
+        # Рассчитываем радиус окружности
+        max_width_height = 0
+        for obj_data in all_objects.values():
+            w = obj_data.get('width', 50)
+            h = obj_data.get('height', 50)
+            max_width_height = max(max_width_height, w, h)
+        
+        radius = max((n * (max_width_height + padding)) / (2 * math.pi), max_width_height + padding)
+        
+        center_x, center_y = 0, 0
+        angle_step = 2 * math.pi / n if n > 0 else 0
+        
+        i = 0
+        for obj_id in all_objects.keys():
+            angle = i * angle_step
+            x = center_x + radius * math.cos(angle) - all_objects[obj_id].get('width', 50) / 2
+            y = center_y + radius * math.sin(angle) - all_objects[obj_id].get('height', 50) / 2
+            
+            # Обновляем координаты в соответствующем словаре
+            if obj_id in objects['devices']:
+                objects['devices'][obj_id]['x'] = x
+                objects['devices'][obj_id]['y'] = y
+            elif obj_id in objects['networks']:
+                objects['networks'][obj_id]['x'] = x
+                objects['networks'][obj_id]['y'] = y
+            i += 1
+            
+        return objects
+
+    def layout_algorithm_grid(self, objects: dict, padding: int = 50) -> dict:
+        """
+        Сеточный алгоритм размещения объектов
+        
+        Args:
+            objects (dict): Словарь с объектами {'devices': devices, 'networks': networks, 'links': links}
+            padding (int): Паддинг вокруг объектов
+            
+        Returns:
+            dict: Модифицированный словарь с проставленными координатами
+        """
+        import math
+        
+        all_objects = {}
+        all_objects.update(objects['devices'])
+        all_objects.update(objects['networks'])
+        
+        n = len(all_objects)
+        if n == 0:
+            return objects
+            
+        # Определяем размер сетки
+        cols = math.ceil(math.sqrt(n))
+        rows = math.ceil(n / cols) if cols > 0 else 0
+        
+        current_x, current_y = 0, 0
+        max_row_height = 0
+        
+        i = 0
+        for obj_id in all_objects.keys():
+            obj_data = all_objects[obj_id]
+            width = obj_data.get('width', 50)
+            height = obj_data.get('height', 50)
+            
+            # Обновляем координаты
+            if obj_id in objects['devices']:
+                objects['devices'][obj_id]['x'] = current_x
+                objects['devices'][obj_id]['y'] = current_y
+            elif obj_id in objects['networks']:
+                objects['networks'][obj_id]['x'] = current_x
+                objects['networks'][obj_id]['y'] = current_y
+            
+            max_row_height = max(max_row_height, height)
+            
+            # Переходим к следующей позиции
+            current_x += width + padding
+            if (i + 1) % cols == 0:  # Новая строка
+                current_x = 0
+                current_y += max_row_height + padding
+                max_row_height = 0
+            
+            i += 1
+            
+        return objects
+
+    def layout_algorithm_force_directed(self, objects: dict, padding: int = 50) -> dict:
+        """
+        Алгоритм силовой направленности для размещения объектов
+        
+        Args:
+            objects (dict): Словарь с объектами {'devices': devices, 'networks': networks, 'links': links}
+            padding (int): Паддинг вокруг объектов
+            
+        Returns:
+            dict: Модифицированный словарь с проставленными координатами
+        """
+        import random
+        import math
+        
+        all_objects = {}
+        all_objects.update(objects['devices'])
+        all_objects.update(objects['networks'])
+        
+        n = len(all_objects)
+        if n <= 1:
+            # Если один или нет объектов, просто размещаем в начале координат
+            for obj_id in all_objects.keys():
+                if obj_id in objects['devices']:
+                    objects['devices'][obj_id]['x'] = 0
+                    objects['devices'][obj_id]['y'] = 0
+                elif obj_id in objects['networks']:
+                    objects['networks'][obj_id]['x'] = 0
+                    objects['networks'][obj_id]['y'] = 0
+            return objects
+        
+        # Инициализация позиций по кругу для более равномерного распределения
+        positions = {}
+        angle_step = 2 * math.pi / n if n > 0 else 0
+        radius = max(100, n * 20)  # Радиус зависит от количества объектов
+        
+        for i, obj_id in enumerate(all_objects.keys()):
+            angle = i * angle_step
+            x = radius * math.cos(angle)
+            y = radius * math.sin(angle)
+            positions[obj_id] = [x, y]
+        
+        # Создаем граф на основе связей
+        graph = {}
+        for link in objects['links']:
+            source = link['source']
+            target = link['target']
+            
+            if source not in graph:
+                graph[source] = []
+            if target not in graph:
+                graph[target] = []
+                
+            if target not in graph[source]:
+                graph[source].append(target)
+            if source not in graph[target]:
+                graph[target].append(source)
+        
+        # Параметры алгоритма
+        k_repulsion = 30  # Коэффициент отталкивания
+        k_attraction = 0.5  # Коэффициент притяжения
+        iterations = 50  # Количество итераций
+        initial_temperature = 100  # Начальная температура для ограничения смещений
+        
+        for iteration in range(iterations):
+            displacement = {node: [0, 0] for node in positions}
+            
+            # Сила отталкивания между узлами
+            for v in positions:
+                for u in positions:
+                    if v != u:
+                        dx = positions[v][0] - positions[u][0]
+                        dy = positions[v][1] - positions[u][1]
+                        distance = max(math.sqrt(dx*dx + dy*dy), 0.1)
+                        
+                        # Отталкивающая сила (чем ближе, тем сильнее отталкивание)
+                        repulsion_force = k_repulsion * k_repulsion / distance
+                        displacement[v][0] += (dx / distance) * repulsion_force
+                        displacement[v][1] += (dy / distance) * repulsion_force
+            
+            # Сила притяжения для связанных узлов
+            for node in graph:
+                if node in positions:  # Проверяем, что узел существует в positions
+                    for neighbor in graph[node]:
+                        if neighbor in positions:  # Проверяем, что сосед существует в positions
+                            dx = positions[neighbor][0] - positions[node][0]
+                            dy = positions[neighbor][1] - positions[node][1]
+                            distance = max(math.sqrt(dx*dx + dy*dy), 0.1)
+                            
+                            # Притягивающая сила (чем дальше, тем сильнее притяжение)
+                            attraction_force = (distance * distance) * k_attraction / k_repulsion
+                            displacement[node][0] += (dx / distance) * attraction_force
+                            displacement[node][1] += (dy / distance) * attraction_force
+            
+            # Обновляем позиции с учетом температуры
+            temperature = initial_temperature * (1 - iteration / iterations)  # Постепенно снижаем температуру
+            
+            for node in positions:
+                move_x = max(min(displacement[node][0], temperature), -temperature)
+                move_y = max(min(displacement[node][1], temperature), -temperature)
+                
+                positions[node][0] += move_x
+                positions[node][1] += move_y
+        
+        # Нормализуем позиции и применяем к объектам
+        if positions:
+            min_x = min(pos[0] for pos in positions.values())
+            min_y = min(pos[1] for pos in positions.values())
+            
+            for obj_id, pos in positions.items():
+                x = pos[0] - min_x
+                y = pos[1] - min_y
+                
+                # Учитываем размеры объекта
+                width = all_objects[obj_id].get('width', 50)
+                height = all_objects[obj_id].get('height', 50)
+                
+                if obj_id in objects['devices']:
+                    objects['devices'][obj_id]['x'] = x - width/2
+                    objects['devices'][obj_id]['y'] = y - height/2
+                elif obj_id in objects['networks']:
+                    objects['networks'][obj_id]['x'] = x - width/2
+                    objects['networks'][obj_id]['y'] = y - height/2
+        
+        return objects
+
+    def layout_algorithm_clustered(self, objects: dict, padding: int = 50) -> dict:
+        """
+        Кластерный алгоритм размещения объектов - группировка связанных объектов
+        
+        Args:
+            objects (dict): Словарь с объектами {'devices': devices, 'networks': networks, 'links': links}
+            padding (int): Паддинг вокруг объектов
+            
+        Returns:
+            dict: Модифицированный словарь с проставленными координатами
+        """
+        import math
+        
+        all_objects = {}
+        all_objects.update(objects['devices'])
+        all_objects.update(objects['networks'])
+        
+        if len(all_objects) == 0:
+            return objects
+        
+        # Создаем группы связанных объектов
+        visited = set()
+        clusters = []
+        
+        # Создаем граф на основе связей
+        graph = {}
+        for link in objects['links']:
+            source = link['source']
+            target = link['target']
+            
+            if source not in graph:
+                graph[source] = []
+            if target not in graph:
+                graph[target] = []
+                
+            if target not in graph[source]:
+                graph[source].append(target)
+            if source not in graph[target]:
+                graph[target].append(source)
+        
+        # Находим компоненты связности (кластеры)
+        for obj_id in all_objects.keys():
+            if obj_id not in visited:
+                cluster = []
+                queue = [obj_id]
+                visited.add(obj_id)
+                
+                while queue:
+                    current = queue.pop(0)
+                    cluster.append(current)
+                    
+                    if current in graph:
+                        for neighbor in graph[current]:
+                            if neighbor not in visited and neighbor in all_objects:
+                                visited.add(neighbor)
+                                queue.append(neighbor)
+                
+                clusters.append(cluster)
+        
+        # Размещаем каждый кластер отдельно
+        current_x, current_y = 0, 0
+        max_cluster_height = 0
+        
+        for cluster in clusters:
+            # Для каждого кластера используем сеточный алгоритм
+            cluster_size = len(cluster)
+            if cluster_size == 1:
+                obj_id = cluster[0]
+                width = all_objects[obj_id].get('width', 50)
+                height = all_objects[obj_id].get('height', 50)
+                
+                if obj_id in objects['devices']:
+                    objects['devices'][obj_id]['x'] = current_x
+                    objects['devices'][obj_id]['y'] = current_y
+                elif obj_id in objects['networks']:
+                    objects['networks'][obj_id]['x'] = current_x
+                    objects['networks'][obj_id]['y'] = current_y
+                
+                current_x += max(width, height) + padding
+                max_cluster_height = max(max_cluster_height, height)
+            else:
+                # Размещаем объекты кластера в сетке
+                cols = math.ceil(math.sqrt(cluster_size))
+                rows = math.ceil(cluster_size / cols) if cols > 0 else 0
+                
+                cluster_start_x = current_x
+                cluster_start_y = current_y
+                
+                i = 0
+                cluster_max_height = 0
+                
+                for obj_id in cluster:
+                    row = i // cols
+                    col = i % cols
+                    
+                    obj_width = all_objects[obj_id].get('width', 50)
+                    obj_height = all_objects[obj_id].get('height', 50)
+                    
+                    x = cluster_start_x + col * (obj_width + padding)
+                    y = cluster_start_y + row * (obj_height + padding)
+                    
+                    if obj_id in objects['devices']:
+                        objects['devices'][obj_id]['x'] = x
+                        objects['devices'][obj_id]['y'] = y
+                    elif obj_id in objects['networks']:
+                        objects['networks'][obj_id]['x'] = x
+                        objects['networks'][obj_id]['y'] = y
+                    
+                    cluster_max_height = max(cluster_max_height, obj_height)
+                    i += 1
+                
+                # Обновляем глобальные координаты
+                current_x += cols * (max([all_objects[obj_id].get('width', 50) for obj_id in cluster]) + padding)
+                max_cluster_height = max(max_cluster_height, rows * cluster_max_height + padding)
+        
+        return objects
 
 
