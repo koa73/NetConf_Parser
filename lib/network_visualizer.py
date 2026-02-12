@@ -690,7 +690,7 @@ class NetworkVisualizer:
         
         Args:
             objects (dict): Словарь с объектами {'devices': devices, 'networks': networks, 'links': links}
-            padding (int): Паддинг вокруг объектов
+            padding (int): padding вокруг объектов
             
         Returns:
             dict: Модифицированный словарь с проставленными координатами
