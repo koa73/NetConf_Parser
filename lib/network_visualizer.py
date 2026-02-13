@@ -1394,6 +1394,36 @@ class NetworkVisualizer:
             # Вывод статистики для текущего типа объектов
             print(f"Добавлено {plural_name}: {added}/{total}, ошибок: {errors}")
 
+        # Добавляем связи между объектами
+        links = objects.get('links', [])
+        total_links = len(links)
+        added_links = 0
+        link_errors = 0
+
+        print("-" * 110)
+        for link in links:
+            try:
+                # Извлекаем параметры связи
+                source = link.get('source')
+                target = link.get('target')
+                style = link.get('style', '')
+                label = link.get('label', '')
+                src_label = link.get('src_label', '')
+
+                # Добавляем связь на диаграмму
+                diagram.add_link(
+                    source=source,
+                    target=target,
+                    style=style,
+                    src_label=src_label
+                )
+                added_links += 1
+
+            except Exception as e:
+                link_errors += 1
+                print(f"Ошибка при добавлении связи {link.get('source', 'N/A')} -> {link.get('target', 'N/A')}: {e}")
+
+        print(f"Добавлено связей: {added_links}/{total_links}, ошибок: {link_errors}")
 
         # Сохраняем диаграмму
         diagram.dump_file(filename="network_diagram.drawio", folder="./")

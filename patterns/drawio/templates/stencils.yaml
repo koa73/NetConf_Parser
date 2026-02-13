@@ -19,11 +19,11 @@ network:
   width: 200
   style: 'verticalAlign=middle;align=center;vsdxID=35397;rotation=0;fillColor=#c0cfe2;gradientColor=none;shape=stencil(nZFLDsIwDERP4y0KyQKxLuUCnCAihliEpEpL+ZyetANS6YJFs7JnXmxpTKZqvW2YtGq7nC58F9d5MjvSWqLnLF2pyNRkqlPKfM7pFh36xhZSq1Fhhz/rgdbK5uNBXgxts9r+PjAYck39sPwBVMF6foYp9HugQeIE/ZqL4D/oQnC2vhRjPAhOQkC6U38eZ5FwClO/AQ==);strokeColor=#000000;labelBackgroundColor=none;rounded=1;html=1;whiteSpace=wrap;'
 logical_link:
-  style: 'endArrow=none;html=1;strokeColor=#1e88e5;strokeWidth=2;dashed=1;"'
+  style: 'endArrow=none;html=1;strokeColor=#1e88e5;strokeWidth=2;dashed=1;'
   parent: "3"
 physical_link:
-  style: 'endArrow=none;html=1;strokeColor=#000000;strokeWidth=3;"'
+  style: 'endArrow=none;html=1;strokeColor=#000000;strokeWidth=3;'
   parent: "1"
 mgm_link:
-  style: 'endArrow=none;html=1;strokeColor=#43a047;strokeWidth=2;dashed=1;"'
+  style: 'endArrow=none;html=1;strokeColor=#43a047;strokeWidth=2;dashed=1;'
   parent: "2"
