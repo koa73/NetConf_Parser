@@ -40,76 +40,6 @@ class NetworkVisualizer:
             )
             sys.exit(1)
 
-    @staticmethod
-    def _read_yaml_file(filepath: str) -> Dict[str, Any]:
-        """
-        Статический метод для чтения YAML-файла.
-        При ошибке завершает программу с кодом 1.
-        
-        Args:
-            filepath (str): Путь к YAML-файлу
-            
-        Returns:
-            Dict[str, Any]: Содержимое файла в виде словаря
-        """
-        path = Path(filepath).resolve()
-
-        # Проверка существования файла
-        if not path.exists():
-            sys.stderr.write(f"❌ ОШИБКА: Файл не найден: {path}\n")
-            sys.exit(1)
-
-        # Проверка прав на чтение
-        if not path.is_file() or not path.stat().st_size > 0:
-            sys.stderr.write(f"❌ ОШИБКА: Некорректный файл: {path}\n")
-            sys.exit(1)
-
-        # Проверка расширения
-        if path.suffix.lower() not in ('.yaml', '.yml'):
-            sys.stderr.write(
-                f"❌ ОШИБКА: Ожидается файл с расширением .yaml или .yml, получено: {path.suffix}\n"
-            )
-            sys.exit(1)
-
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-
-                if not content:
-                    sys.stderr.write(f"❌ ОШИБКА: Файл пустой: {path}\n")
-                    sys.exit(1)
-
-                data = yaml.safe_load(content)
-
-                if data is None:
-                    sys.stderr.write(
-                        f"❌ ОШИБКА: Файл не содержит данных (только комментарии): {path}\n"
-                    )
-                    sys.exit(1)
-
-                if not isinstance(data, dict):
-                    sys.stderr.write(
-                        f"❌ ОШИБКА: Содержимое YAML должно быть словарём, получено: {type(data).__name__}\n"
-                    )
-                    sys.exit(1)
-
-                return data
-
-        except yaml.YAMLError as e:
-            sys.stderr.write(f"❌ ОШИБКА: Синтаксическая ошибка YAML в файле {path}:\n{e}\n")
-            sys.exit(1)
-        except UnicodeDecodeError:
-            sys.stderr.write(
-                f"❌ ОШИБКА: Невозможно декодировать файл '{path}' как UTF-8.\n"
-                f"Убедитесь, что файл сохранён в кодировке UTF-8.\n"
-            )
-            sys.exit(1)
-        except Exception as e:
-            sys.stderr.write(
-                f"❌ ОШИБКА: Неожиданная ошибка при чтении {path}:\n{type(e).__name__}: {e}\n"
-            )
-            sys.exit(1)
-
     def merge_yaml_files(self) -> Dict[str, Any]:
         """
         Reads index.yaml file, reads devices.yaml from the same directory,
@@ -260,6 +190,7 @@ class NetworkVisualizer:
                                 device_data['y'] = 0
                                 device_data['data'] = {}
                                 device_list[device_name] = device_data
+                                device_data['label'] = f"&lt;font style=&quot;color: light-dark(rgb(0, 0, 0), rgb(237, 237, 237)); line-height: 140%; font-size: 9px; &quot;&gt;&amp;nbsp;{device_name}&amp;nbsp;&lt;/font&gt;"
                                 break
                         else:
                             continue  # только если внутренний цикл не был прерван
@@ -1415,7 +1346,8 @@ class NetworkVisualizer:
                     source=source,
                     target=target,
                     style=style,
-                    src_label=src_label
+                    src_label=src_label,
+                    data={'parent': link.get('parent', 3)}
                 )
                 added_links += 1
 

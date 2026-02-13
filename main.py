@@ -59,7 +59,7 @@ def main():
         print("2. Сеточный алгоритм")
         print("3. Силовой алгоритм")
         print("4. Кластерный алгоритм\n")
-        print("Нажмите Enter для выбора алгоритма по умолчанию (круговой)\n")
+        print("Нажмите Enter для выбора алгоритма по умолчанию (Силовой алгоритм)\n")
 
         choice = input("Введите номер алгоритма (1-4) или нажмите Enter: ").strip()
 
@@ -71,7 +71,7 @@ def main():
             '4': 'clustered'
         }
 
-        layout_algorithm = algorithm_map.get(choice, 'circular')  # По умолчанию круговой
+        layout_algorithm = algorithm_map.get(choice, 'force_directed')  # По умолчанию круговой
 
         objects = viz.prepare_stencils(links_result, layout_algorithm=layout_algorithm)
 
