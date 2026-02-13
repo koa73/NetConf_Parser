@@ -1034,7 +1034,7 @@ class NetworkVisualizer:
         # Инициализация позиций по кругу для более равномерного распределения
         positions = {}
         angle_step = 2 * math.pi / n if n > 0 else 0
-        radius = max(100, n * 30)  # Увеличенный радиус для большего начального расстояния
+        radius = max(50, n * 15)  # Уменьшенный радиус для меньшего начального расстояния
 
         for i, obj_id in enumerate(all_objects.keys()):
             angle = i * angle_step
@@ -1059,12 +1059,12 @@ class NetworkVisualizer:
                 graph[target].append(source)
 
         # Параметры алгоритма
-        k_repulsion_device_device = 50  # Коэффициент отталкивания между устройствами
-        k_repulsion_network_network = 40  # Коэффициент отталкивания между сетями
-        k_repulsion_device_network = 60  # Коэффициент отталкивания между устройствами и сетями
-        k_attraction = 0.8  # Коэффициент притяжения
-        iterations = 100  # Увеличенное количество итераций для лучшей сходимости
-        initial_temperature = 150  # Начальная температура для ограничения смещений
+        k_repulsion_device_device = 25  # Уменьшенный коэффициент отталкивания между устройствами
+        k_repulsion_network_network = 20  # Уменьшенный коэффициент отталкивания между сетями
+        k_repulsion_device_network = 40  # Увеличенный коэффициент отталкивания между устройствами и сетями
+        k_attraction = 0.4  # Уменьшенный коэффициент притяжения
+        iterations = 40  # Уменьшенное количество итераций для уменьшения разброса
+        initial_temperature = 60  # Уменьшенная начальная температура для ограничения смещений
 
         for iteration in range(iterations):
             displacement = {node: [0, 0] for node in positions}
@@ -1075,36 +1075,36 @@ class NetworkVisualizer:
                     if v != u:
                         dx = positions[v][0] - positions[u][0]
                         dy = positions[v][1] - positions[u][1]
-                        
+
                         # Учитываем размеры объектов при расчете расстояния
                         v_width = all_objects[v].get('width', 50)
                         v_height = all_objects[v].get('height', 50)
                         u_width = all_objects[u].get('width', 50)
                         u_height = all_objects[u].get('height', 50)
-                        
+
                         # Минимальное расстояние между центрами объектов с учетом их размеров и паддинга
                         min_distance = (math.sqrt(v_width**2 + v_height**2) + math.sqrt(u_width**2 + u_height**2))/2 + padding
-                        
+
                         distance = max(math.sqrt(dx*dx + dy*dy), 0.1)
 
                         # Определяем типы объектов для выбора коэффициента отталкивания
                         v_is_device = v in objects['devices']
                         u_is_device = u in objects['devices']
-                        
+
                         if v_is_device and u_is_device:
                             k_repulsion = k_repulsion_device_device
                         elif not v_is_device and not u_is_device:
                             k_repulsion = k_repulsion_network_network
                         else:
                             k_repulsion = k_repulsion_device_network
-                        
+
                         # Отталкивающая сила (с учетом минимального расстояния)
                         if distance < min_distance:
                             # Если объекты слишком близко, увеличиваем силу отталкивания
                             repulsion_force = k_repulsion * k_repulsion / distance * (min_distance / distance)**2
                         else:
                             repulsion_force = k_repulsion * k_repulsion / distance
-                        
+
                         displacement[v][0] += (dx / distance) * repulsion_force
                         displacement[v][1] += (dy / distance) * repulsion_force
 
@@ -1118,10 +1118,18 @@ class NetworkVisualizer:
                             distance = max(math.sqrt(dx*dx + dy*dy), 0.1)
 
                             # Притягивающая сила (чем дальше, тем сильнее притяжение)
-                            attraction_force = (distance * distance) * k_attraction / (k_repulsion_device_network if (node in objects['devices']) != (neighbor in objects['devices']) else k_repulsion_device_device)
+                            # Для связанных узлов (устройство-сеть) используем усиленное притяжение
+                            if (node in objects['devices']) != (neighbor in objects['devices']):
+                                # Устройства и сети, которые связаны, должны сильнее притягиваться друг к другу
+                                attraction_force = (distance * distance) * k_attraction / k_repulsion_device_network
+                                # Увеличиваем притяжение для связанных элементов
+                                attraction_force *= 1.5  # Усиливаем притяжение для связанных элементов
+                            else:
+                                # Для одинаковых типов объектов (устройство-устройство или сеть-сеть)
+                                attraction_force = (distance * distance) * k_attraction / k_repulsion_device_device
                             
                             # Ограничиваем силу притяжения, чтобы не было чрезмерного сближения
-                            max_attraction = 50
+                            max_attraction = 35
                             attraction_force = min(attraction_force, max_attraction)
                             
                             displacement[node][0] += (dx / distance) * attraction_force
