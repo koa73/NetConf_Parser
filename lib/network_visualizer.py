@@ -830,59 +830,174 @@ class NetworkVisualizer:
         return objects
 
     @staticmethod
-    def layout_algorithm_grid(objects: dict, padding: int = 50) -> dict:
+    def layout_algorithm_grid(objects: dict, padding: int = 50, group_padding: int = 30) -> dict:
         """
-        Сеточный алгоритм размещения объектов
-        
+        Сеточный алгоритм размещения объектов с группировкой сетей по pattern
+
         Args:
             objects (dict): Словарь с объектами {'devices': devices, 'networks': networks, 'links': links}
             padding (int): Паддинг вокруг объектов
-            
+            group_padding (int): Отступ между группами объектов
+
         Returns:
             dict: Модифицированный словарь с проставленными координатами
         """
         import math
-        
-        all_objects = {}
-        all_objects.update(objects['devices'])
-        all_objects.update(objects['networks'])
-        
-        n = len(all_objects)
-        if n == 0:
+
+        devices = objects['devices']
+        networks = objects['networks']
+        links = objects['links']
+
+        # 1. Разбиение на группы и определение сеток
+        # Группируем сети по значению pattern
+        network_groups = {}
+        for network_id, network_data in networks.items():
+            pattern_value = network_data.get('pattern', 0)
+            if pattern_value not in network_groups:
+                network_groups[pattern_value] = {}
+            network_groups[pattern_value][network_id] = network_data
+
+        # Определяем все группы (устройства и группы сетей)
+        all_groups = {'devices': devices}
+        for pattern, net_group in network_groups.items():
+            all_groups[f'network_{pattern}'] = net_group
+
+        # 2. Предварительный расчет координат устройств и сетей внутри каждой из групп
+        # и определение границ сетки группы
+        group_bounds = {}  # Словарь для хранения границ каждой группы
+        group_relative_positions = {}  # Словарь для хранения относительных координат объектов в группе
+
+        for group_name, group_objects in all_groups.items():
+            if not group_objects:
+                continue
+
+            # Рассчитываем сетку для текущей группы
+            n = len(group_objects)
+            if n == 0:
+                continue
+
+            cols = math.ceil(math.sqrt(n))
+            rows = math.ceil(n / cols) if cols > 0 else 0
+
+            current_x, current_y = 0, 0
+            max_row_height = 0
+            i = 0
+
+            group_relative_positions[group_name] = {}
+
+            for obj_id in group_objects.keys():
+                obj_data = group_objects[obj_id]
+                width = obj_data.get('width', 50)
+                height = obj_data.get('height', 50)
+
+                # Сохраняем относительные координаты
+                group_relative_positions[group_name][obj_id] = (current_x, current_y)
+
+                max_row_height = max(max_row_height, height)
+
+                # Переходим к следующей позиции
+                # Паддинг справа и слева равен ширине объекта + padding
+                current_x += width + padding
+                if (i + 1) % cols == 0:  # Новая строка
+                    current_x = 0
+                    # Паддинг по высоте равен высоте объекта + padding
+                    current_y += max_row_height + padding
+                    max_row_height = 0
+
+                i += 1
+
+            # Определяем границы группы с учетом padding по периметру
+            if n > 0:
+                # Находим максимальные координаты
+                max_x = max(pos[0] for pos in group_relative_positions[group_name].values())
+                max_y = max(pos[1] for pos in group_relative_positions[group_name].values())
+                
+                # Находим ширину и высоту последнего элемента
+                last_obj = list(group_objects.values())[-1]
+                last_width = last_obj.get('width', 50)
+                last_height = last_obj.get('height', 50)
+                
+                # Определяем общую ширину и высоту группы
+                group_width = max_x + last_width
+                group_height = max_y + last_height
+                
+                # Добавляем padding по периметру
+                padded_width = group_width + 2 * padding
+                padded_height = group_height + 2 * padding
+                
+                group_bounds[group_name] = {
+                    'width': padded_width,
+                    'height': padded_height,
+                    'original_width': group_width,
+                    'original_height': group_height
+                }
+
+        # 3. Формирование общей сетки для размещения каждого из блоков (сеток групп)
+        # где каждый из блоков рассматривается как макрообъект
+        n_groups = len(group_bounds)
+        if n_groups == 0:
             return objects
-            
-        # Определяем размер сетки
-        cols = math.ceil(math.sqrt(n))
-        rows = math.ceil(n / cols) if cols > 0 else 0
-        
-        current_x, current_y = 0, 0
-        max_row_height = 0
-        
-        i = 0
-        for obj_id in all_objects.keys():
-            obj_data = all_objects[obj_id]
-            width = obj_data.get('width', 50)
-            height = obj_data.get('height', 50)
-            
-            # Обновляем координаты
-            if obj_id in objects['devices']:
-                objects['devices'][obj_id]['x'] = current_x
-                objects['devices'][obj_id]['y'] = current_y
-            elif obj_id in objects['networks']:
-                objects['networks'][obj_id]['x'] = current_x
-                objects['networks'][obj_id]['y'] = current_y
-            
-            max_row_height = max(max_row_height, height)
-            
+
+        # Рассчитываем сетку для размещения групп
+        group_cols = math.ceil(math.sqrt(n_groups))
+        group_rows = math.ceil(n_groups / group_cols) if group_cols > 0 else 0
+
+        # Определяем размеры общей сетки
+        macro_current_x, macro_current_y = 0, 0
+        macro_max_row_height = 0
+        group_macro_positions = {}
+
+        group_names_list = list(group_bounds.keys())
+        for i, group_name in enumerate(group_names_list):
+            group_width = group_bounds[group_name]['width']
+            group_height = group_bounds[group_name]['height']
+
+            group_macro_positions[group_name] = (macro_current_x, macro_current_y)
+
+            macro_max_row_height = max(macro_max_row_height, group_height)
+
             # Переходим к следующей позиции
-            current_x += width + padding
-            if (i + 1) % cols == 0:  # Новая строка
-                current_x = 0
-                current_y += max_row_height + padding
-                max_row_height = 0
-            
-            i += 1
-            
+            macro_current_x += group_width + group_padding
+            if (i + 1) % group_cols == 0:  # Новая строка
+                macro_current_x = 0
+                macro_current_y += macro_max_row_height + group_padding
+                macro_max_row_height = 0
+
+        # 4. Пересчет координат устройств и сетей внутри каждого из блоков
+        # с учетом координат блока внутри общей сетки
+        for group_name, group_objects in all_groups.items():
+            if group_name not in group_macro_positions:
+                continue
+
+            # Получаем позицию группы в общей сетке
+            group_pos_x, group_pos_y = group_macro_positions[group_name]
+
+            # Обновляем координаты для каждого объекта в группе
+            for obj_id in group_objects.keys():
+                if group_name in group_relative_positions and obj_id in group_relative_positions[group_name]:
+                    rel_x, rel_y = group_relative_positions[group_name][obj_id]
+                    
+                    # Абсолютная позиция = позиция группы + относительная позиция объекта в группе
+                    abs_x = group_pos_x + rel_x + padding  # добавляем padding для компенсации периметра
+                    abs_y = group_pos_y + rel_y + padding
+                    
+                    # Обновляем координаты в основном словаре
+                    if obj_id in objects['devices']:
+                        objects['devices'][obj_id]['x'] = abs_x
+                        objects['devices'][obj_id]['y'] = abs_y
+                    elif obj_id in objects['networks']:
+                        objects['networks'][obj_id]['x'] = abs_x
+                        objects['networks'][obj_id]['y'] = abs_y
+
+        # Округляем все координаты до целых чисел
+        for device_id, device_data in objects['devices'].items():
+            device_data['x'] = round(device_data['x'])
+            device_data['y'] = round(device_data['y'])
+
+        for network_id, network_data in objects['networks'].items():
+            network_data['x'] = round(network_data['x'])
+            network_data['y'] = round(network_data['y'])
+
         return objects
 
     @staticmethod
