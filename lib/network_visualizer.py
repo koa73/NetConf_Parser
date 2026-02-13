@@ -365,7 +365,8 @@ class NetworkVisualizer:
                         'style': style,
                         'label': ip1,
                         'data': None,
-                        'src_label': interface1
+                        'src_label': interface1,
+                        'pattern': 1
                     }
                     links.append(link_dict1)
                     
@@ -376,7 +377,8 @@ class NetworkVisualizer:
                         'style': style,
                         'label': ip2,
                         'data': None,
-                        'src_label': interface2
+                        'src_label': interface2,
+                        'pattern': 1
                     }
                     links.append(link_dict2)
 
@@ -404,7 +406,8 @@ class NetworkVisualizer:
                         'style': style,
                         'label': ip,
                         'data': None,
-                        'src_label': interface
+                        'src_label': interface,
+                        'pattern': 2
                     }
                     links.append(link_dict)
 
@@ -444,7 +447,8 @@ class NetworkVisualizer:
                         'style': style,
                         'label': ip1,
                         'data': None,
-                        'src_label': interface1
+                        'src_label': interface1,
+                        'pattern': 3
                     }
                     links.append(link_dict1)
                     
@@ -1308,7 +1312,7 @@ class NetworkVisualizer:
                 try:
                     # Меняем в шаблоне шаблоне parent_id
                     diagram.drawio_node_object_xml = self.set_parent(diagram.drawio_node_object_xml, obj_data.get('pattern', 1))
-                    print(f"{diagram.drawio_node_object_xml}\n")
+
                     # Добавляем объект на диаграмму
                     diagram.add_node(
                         id=obj_id,
@@ -1343,6 +1347,9 @@ class NetworkVisualizer:
                 style = link.get('style', '')
                 label = link.get('label', '')
                 src_label = link.get('src_label', '')
+
+                # Меняем в шаблоне шаблоне parent_id
+                diagram.drawio_link_object_xml = self.set_parent(diagram.drawio_link_object_xml, link.get('pattern', 1))
 
                 # Добавляем связь на диаграмму
                 diagram.add_link(
