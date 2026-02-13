@@ -311,6 +311,7 @@ class NetworkVisualizer:
             clean_network_key = ''.join(c if c.isdigit() else '_' for c in network)
             network_list[clean_network_key] = network_data
 
+        print(network_list.get('logical_links'))
         return network_list
 
     @staticmethod
@@ -443,25 +444,15 @@ class NetworkVisualizer:
                     # Соединение от device1 к network
                     link_dict1 = {
                         'source': device1,
-                        'target': clean_network,
+                        'target': device2,
                         'style': style,
                         'label': ip1,
                         'data': None,
                         'src_label': interface1,
+                        'trgt_label': interface2,
                         'pattern': 3
                     }
                     links.append(link_dict1)
-                    
-                    # Соединение от device2 к network
-                    link_dict2 = {
-                        'source': device2,
-                        'target': clean_network,
-                        'style': style,
-                        'label': ip2,
-                        'data': None,
-                        'src_label': interface2
-                    }
-                    links.append(link_dict2)
 
         return links
 
