@@ -1001,24 +1001,24 @@ class NetworkVisualizer:
         return objects
 
     @staticmethod
-    def layout_algorithm_force_directed(objects: dict, padding: int = 50) -> dict:
+    def layout_algorithm_force_directed(objects: dict, padding: int = 5) -> dict:
         """
-        Алгоритм силовой направленности для размещения объектов
-        
+        Улучшенный алгоритм силовой направленности для размещения объектов
+
         Args:
             objects (dict): Словарь с объектами {'devices': devices, 'networks': networks, 'links': links}
             padding (int): padding вокруг объектов
-            
+
         Returns:
             dict: Модифицированный словарь с проставленными координатами
         """
         import random
         import math
-        
+
         all_objects = {}
         all_objects.update(objects['devices'])
         all_objects.update(objects['networks'])
-        
+
         n = len(all_objects)
         if n <= 1:
             # Если один или нет объектов, просто размещаем в начале координат
@@ -1030,56 +1030,84 @@ class NetworkVisualizer:
                     objects['networks'][obj_id]['x'] = 0
                     objects['networks'][obj_id]['y'] = 0
             return objects
-        
+
         # Инициализация позиций по кругу для более равномерного распределения
         positions = {}
         angle_step = 2 * math.pi / n if n > 0 else 0
-        radius = max(100, n * 20)  # Радиус зависит от количества объектов
-        
+        radius = max(100, n * 30)  # Увеличенный радиус для большего начального расстояния
+
         for i, obj_id in enumerate(all_objects.keys()):
             angle = i * angle_step
             x = radius * math.cos(angle)
             y = radius * math.sin(angle)
             positions[obj_id] = [x, y]
-        
+
         # Создаем граф на основе связей
         graph = {}
         for link in objects['links']:
             source = link['source']
             target = link['target']
-            
+
             if source not in graph:
                 graph[source] = []
             if target not in graph:
                 graph[target] = []
-                
+
             if target not in graph[source]:
                 graph[source].append(target)
             if source not in graph[target]:
                 graph[target].append(source)
-        
+
         # Параметры алгоритма
-        k_repulsion = 30  # Коэффициент отталкивания
-        k_attraction = 0.5  # Коэффициент притяжения
-        iterations = 50  # Количество итераций
-        initial_temperature = 100  # Начальная температура для ограничения смещений
-        
+        k_repulsion_device_device = 50  # Коэффициент отталкивания между устройствами
+        k_repulsion_network_network = 40  # Коэффициент отталкивания между сетями
+        k_repulsion_device_network = 60  # Коэффициент отталкивания между устройствами и сетями
+        k_attraction = 0.8  # Коэффициент притяжения
+        iterations = 100  # Увеличенное количество итераций для лучшей сходимости
+        initial_temperature = 150  # Начальная температура для ограничения смещений
+
         for iteration in range(iterations):
             displacement = {node: [0, 0] for node in positions}
-            
-            # Сила отталкивания между узлами
+
+            # Сила отталкивания между узлами с учетом типов объектов и их размеров
             for v in positions:
                 for u in positions:
                     if v != u:
                         dx = positions[v][0] - positions[u][0]
                         dy = positions[v][1] - positions[u][1]
-                        distance = max(math.sqrt(dx*dx + dy*dy), 0.1)
                         
-                        # Отталкивающая сила (чем ближе, тем сильнее отталкивание)
-                        repulsion_force = k_repulsion * k_repulsion / distance
+                        # Учитываем размеры объектов при расчете расстояния
+                        v_width = all_objects[v].get('width', 50)
+                        v_height = all_objects[v].get('height', 50)
+                        u_width = all_objects[u].get('width', 50)
+                        u_height = all_objects[u].get('height', 50)
+                        
+                        # Минимальное расстояние между центрами объектов с учетом их размеров и паддинга
+                        min_distance = (math.sqrt(v_width**2 + v_height**2) + math.sqrt(u_width**2 + u_height**2))/2 + padding
+                        
+                        distance = max(math.sqrt(dx*dx + dy*dy), 0.1)
+
+                        # Определяем типы объектов для выбора коэффициента отталкивания
+                        v_is_device = v in objects['devices']
+                        u_is_device = u in objects['devices']
+                        
+                        if v_is_device and u_is_device:
+                            k_repulsion = k_repulsion_device_device
+                        elif not v_is_device and not u_is_device:
+                            k_repulsion = k_repulsion_network_network
+                        else:
+                            k_repulsion = k_repulsion_device_network
+                        
+                        # Отталкивающая сила (с учетом минимального расстояния)
+                        if distance < min_distance:
+                            # Если объекты слишком близко, увеличиваем силу отталкивания
+                            repulsion_force = k_repulsion * k_repulsion / distance * (min_distance / distance)**2
+                        else:
+                            repulsion_force = k_repulsion * k_repulsion / distance
+                        
                         displacement[v][0] += (dx / distance) * repulsion_force
                         displacement[v][1] += (dy / distance) * repulsion_force
-            
+
             # Сила притяжения для связанных узлов
             for node in graph:
                 if node in positions:  # Проверяем, что узел существует в positions
@@ -1088,43 +1116,113 @@ class NetworkVisualizer:
                             dx = positions[neighbor][0] - positions[node][0]
                             dy = positions[neighbor][1] - positions[node][1]
                             distance = max(math.sqrt(dx*dx + dy*dy), 0.1)
-                            
+
                             # Притягивающая сила (чем дальше, тем сильнее притяжение)
-                            attraction_force = (distance * distance) * k_attraction / k_repulsion
+                            attraction_force = (distance * distance) * k_attraction / (k_repulsion_device_network if (node in objects['devices']) != (neighbor in objects['devices']) else k_repulsion_device_device)
+                            
+                            # Ограничиваем силу притяжения, чтобы не было чрезмерного сближения
+                            max_attraction = 50
+                            attraction_force = min(attraction_force, max_attraction)
+                            
                             displacement[node][0] += (dx / distance) * attraction_force
                             displacement[node][1] += (dy / distance) * attraction_force
-            
+
             # Обновляем позиции с учетом температуры
             temperature = initial_temperature * (1 - iteration / iterations)  # Постепенно снижаем температуру
-            
+
             for node in positions:
                 move_x = max(min(displacement[node][0], temperature), -temperature)
                 move_y = max(min(displacement[node][1], temperature), -temperature)
-                
+
                 positions[node][0] += move_x
                 positions[node][1] += move_y
-        
+
+        # Проверяем и устраняем наложения после основного цикла
+        positions = NetworkVisualizer._resolve_overlaps(positions, all_objects, padding)
+
         # Нормализуем позиции и применяем к объектам
         if positions:
             min_x = min(pos[0] for pos in positions.values())
             min_y = min(pos[1] for pos in positions.values())
-            
+
             for obj_id, pos in positions.items():
                 x = pos[0] - min_x
                 y = pos[1] - min_y
-                
+
                 # Учитываем размеры объекта
                 width = all_objects[obj_id].get('width', 50)
                 height = all_objects[obj_id].get('height', 50)
-                
+
                 if obj_id in objects['devices']:
                     objects['devices'][obj_id]['x'] = x - width/2
                     objects['devices'][obj_id]['y'] = y - height/2
                 elif obj_id in objects['networks']:
                     objects['networks'][obj_id]['x'] = x - width/2
                     objects['networks'][obj_id]['y'] = y - height/2
-        
+
         return objects
+
+    @staticmethod
+    def _resolve_overlaps(positions: dict, all_objects: dict, padding: int = 50) -> dict:
+        """
+        Метод для устранения наложений объектов после основного алгоритма
+        
+        Args:
+            positions (dict): Текущие позиции объектов
+            all_objects (dict): Все объекты с информацией о размерах
+            padding (int): Паддинг между объектами
+            
+        Returns:
+            dict: Обновленные позиции без наложений
+        """
+        import math
+        
+        # Создаем копию позиций для модификации
+        new_positions = positions.copy()
+        
+        # Повторяем процесс устранения наложений несколько раз
+        for _ in range(5):  # 5 итераций для устранения наложений
+            overlaps_found = False
+            
+            for obj1, pos1 in new_positions.items():
+                for obj2, pos2 in new_positions.items():
+                    if obj1 != obj2:
+                        # Получаем размеры объектов
+                        w1 = all_objects[obj1].get('width', 50)
+                        h1 = all_objects[obj1].get('height', 50)
+                        w2 = all_objects[obj2].get('width', 50)
+                        h2 = all_objects[obj2].get('height', 50)
+                        
+                        # Проверяем наложение по осям X и Y
+                        x_overlap = abs(pos1[0] - pos2[0]) < (w1/2 + w2/2 + padding)
+                        y_overlap = abs(pos1[1] - pos2[1]) < (h1/2 + h2/2 + padding)
+                        
+                        if x_overlap and y_overlap:
+                            # Обнаружено наложение, сдвигаем объекты
+                            dx = pos2[0] - pos1[0]
+                            dy = pos2[1] - pos1[1]
+                            distance = max(math.sqrt(dx*dx + dy*dy), 0.1)
+                            
+                            # Рассчитываем минимальное расстояние для предотвращения наложения
+                            min_dist = (math.sqrt(w1**2 + h1**2) + math.sqrt(w2**2 + h2**2))/2 + padding
+                            
+                            # Направление раздвижения
+                            move_x = (dx / distance) * min_dist/2
+                            move_y = (dy / distance) * min_dist/2
+                            
+                            # Сдвигаем оба объекта в противоположные стороны
+                            new_positions[obj1][0] -= move_x
+                            new_positions[obj1][1] -= move_y
+                            new_positions[obj2][0] += move_x
+                            new_positions[obj2][1] += move_y
+                            
+                            overlaps_found = True
+            
+            # Если наложений не найдено, можно прекратить итерации
+            if not overlaps_found:
+                break
+        
+        return new_positions
 
     @staticmethod
     def layout_algorithm_clustered(objects: dict, padding: int = 50) -> dict:
