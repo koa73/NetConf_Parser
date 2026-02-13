@@ -1306,6 +1306,9 @@ class NetworkVisualizer:
 
             for obj_id, obj_data in objects_dict.items():
                 try:
+                    # Меняем в шаблоне шаблоне parent_id
+                    diagram.drawio_node_object_xml = self.set_parent(diagram.drawio_node_object_xml, obj_data.get('pattern', 1))
+                    print(f"{diagram.drawio_node_object_xml}\n")
                     # Добавляем объект на диаграмму
                     diagram.add_node(
                         id=obj_id,
@@ -1357,8 +1360,37 @@ class NetworkVisualizer:
 
         print(f"Добавлено связей: {added_links}/{total_links}, ошибок: {link_errors}")
 
+
         # Сохраняем диаграмму
         diagram.dump_file(filename="network_diagram.drawio", folder="./")
+
+    @staticmethod
+    def set_parent(drawio_node_object_xml: str, parent_id: str) -> str:
+        """
+        Процедура для замены значения атрибута parent в элементе mxCell
+        
+        Args:
+            drawio_node_object_xml (str): XML-строка объекта drawio в формате object
+            parent_id (str): Новое значение для атрибута parent
+            
+        Returns:
+            str: Обновленная XML-строка с измененным значением parent
+        """
+        import re
+        
+        # Проверяем, что parent_id не равен '0'
+        if parent_id == '0':
+            # Если parent_id равен '0', возвращаем оригинальную строку без изменений
+            return drawio_node_object_xml
+        
+        # Регулярное выражение для поиска элемента mxCell с атрибутом parent
+        # Ищем <mxCell ... parent="..." ... >
+        pattern = r'(<mxCell\s+[^>]*parent\s*=\s*["\'])([^"\']*)(["\'][^>]*>)'
+        
+        # Заменяем найденное значение parent на новое
+        updated_xml = re.sub(pattern, r'\g<1>' + str(parent_id) + r'\g<3>', drawio_node_object_xml)
+        
+        return updated_xml
 
 
 
