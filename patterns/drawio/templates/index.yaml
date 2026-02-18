@@ -6,6 +6,7 @@ templates:
     - wireless_controller: default.yaml
   B4com:
     - switch: switch
+    - router: router
   Cisco:
     - switch: switch
     - firewall: firewall

@@ -1513,49 +1513,61 @@ class ReportGenerator:
             if anycast_mac:
                 f.write(f"  Anycast Gateway MAC: {anycast_mac}\n\n")
 
-            # VNI список (первое устройство с VNI)
+            # VNI список - все устройства
+            f.write("  VNI (VXLAN Network Identifier):\n")
+            # Ширина колонок: VNI=12, Bridge VLAN=13, VNI Name=12, Device=25
+            col1, col2, col3, col4 = 12, 13, 12, 25
+            f.write("    ┌" + "─" * col1 + "┬" + "─" * col2 + "┬" + "─" * col3 + "┬" + "─" * col4 + "┐\n")
+            f.write("    │" + "VNI".center(col1) + "│" + "Bridge VLAN".center(col2) + "│" + "VNI Name".center(col3) + "│" + "Device".center(col4) + "│\n")
+            f.write("    ├" + "─" * col1 + "┼" + "─" * col2 + "┼" + "─" * col3 + "┼" + "─" * col4 + "┤\n")
+            
+            vni_count = 0
             for dev in results:
                 vxlan_info = dev.get('vxlan_info', {})
                 vnis = vxlan_info.get('vnis', [])
-                if vnis:
-                    f.write("  VNI (VXLAN Network Identifier):\n")
-                    f.write("    ┌" + "─" * 50 + "┬" + "─" * 15 + "┬" + "─" * 15 + "┐\n")
-                    f.write("    │ " + "VNI".center(50) + " │ " + "Bridge VLAN".center(15) + " │ " + "VNI Name".center(15) + " │\n")
-                    f.write("    ├" + "─" * 50 + "┼" + "─" * 15 + "┼" + "─" * 15 + "┤\n")
-                    for vni in vnis[:10]:  # Первые 10 VNI
-                        f.write(f"    │ {vni.get('vni', 'N/A'):<50} │ {vni.get('bridge_vlan', 'N/A'):<15} │ {vni.get('name', 'N/A'):<15} │\n")
-                    if len(vnis) > 10:
-                        f.write(f"    │ ... и ещё {len(vnis) - 10} VNI {' ' * 47}│\n")
-                    f.write("    └" + "─" * 50 + "┴" + "─" * 15 + "┴" + "─" * 15 + "┘\n")
-                    break
+                device_name = dev.get('device_name', 'unknown')
+                for vni in vnis:
+                    vni_id = str(vni.get('vni', 'N/A'))[:col1]
+                    bridge_vlan = str(vni.get('bridge_vlan', 'N/A'))[:col2]
+                    vni_name = str(vni.get('name', 'N/A'))[:col3]
+                    dev_name = device_name[:col4]
+                    f.write(f"    │{vni_id:^{col1}}│{bridge_vlan:^{col2}}│{vni_name:^{col3}}│{dev_name:^{col4}}│\n")
+                    vni_count += 1
+            
+            if vni_count == 0:
+                total_width = col1 + col2 + col3 + col4 + 5  # +5 для рамок ┌┬┬┬┐
+                f.write("    │" + "Нет данных".center(total_width) + "│\n")
+            f.write("    └" + "─" * col1 + "┴" + "─" * col2 + "┴" + "─" * col3 + "┴" + "─" * col4 + "┘\n")
+            f.write(f"\n    Всего VNI: {vni_count}\n")
             f.write("\n")
 
-            # MAC VRF (EVPN Route Targets) - пример с первого устройства
-            mac_vrf_sample_device = None
-            mac_vrf_sample_list = []
+            # MAC VRF (EVPN Route Targets) - все устройства
+            f.write("  MAC VRF (EVPN Route Targets):\n")
+            # Ширина колонок: VRF Name=12, RD=14, Route Target=16, Desc=12, Device=25
+            col1, col2, col3, col4, col5 = 12, 14, 16, 12, 25
+            f.write("    ┌" + "─" * col1 + "┬" + "─" * col2 + "┬" + "─" * col3 + "┬" + "─" * col4 + "┬" + "─" * col5 + "┐\n")
+            f.write("    │" + "VRF Name".center(col1) + "│" + "RD".center(col2) + "│" + "Route Target".center(col3) + "│" + "Desc".center(col4) + "│" + "Device".center(col5) + "│\n")
+            f.write("    ├" + "─" * col1 + "┼" + "─" * col2 + "┼" + "─" * col3 + "┼" + "─" * col4 + "┼" + "─" * col5 + "┤\n")
+            
+            mac_vrf_count = 0
             for dev in results:
                 vxlan_info = dev.get('vxlan_info', {})
                 mac_vrfs = vxlan_info.get('mac_vrfs', [])
-                if mac_vrfs:
-                    mac_vrf_sample_device = dev['device_name']
-                    mac_vrf_sample_list = mac_vrfs[:10]  # Берём первые 10 для примера
-                    break
+                device_name = dev.get('device_name', 'unknown')
+                for vrf in mac_vrfs:
+                    name = str(vrf.get('name', 'N/A'))[:col1]
+                    rd = str(vrf.get('rd', 'N/A'))[:col2]
+                    rt = str(vrf.get('route_target', 'N/A'))[:col3]
+                    desc = str(vrf.get('description', 'N/A'))[:col4]
+                    dev_name = device_name[:col5]
+                    f.write(f"    │{name:^{col1}}│{rd:^{col2}}│{rt:^{col3}}│{desc:^{col4}}│{dev_name:^{col5}}│\n")
+                    mac_vrf_count += 1
             
-            if mac_vrf_sample_list:
-                f.write(f"  MAC VRF (EVPN Route Targets) - пример с устройства {mac_vrf_sample_device}:\n")
-                f.write("    ┌" + "─" * 30 + "┬" + "─" * 20 + "┬" + "─" * 20 + "┬" + "─" * 20 + "┐\n")
-                f.write("    │ " + "VRF Name".center(30) + " │ " + "RD".center(20) + " │ " + "Route Target".center(20) + " │ " + "Description".center(20) + " │\n")
-                f.write("    ├" + "─" * 30 + "┼" + "─" * 20 + "┼" + "─" * 20 + "┼" + "─" * 20 + "┤\n")
-                for vrf in mac_vrf_sample_list:
-                    name = vrf.get('name', 'N/A')[:28]
-                    rd = vrf.get('rd', 'N/A')[:18]
-                    rt = vrf.get('route_target', 'N/A')[:18]
-                    desc = vrf.get('description', 'N/A')[:18]
-                    f.write(f"    │ {name:<30} │ {rd:<20} │ {rt:<20} │ {desc:<20} │\n")
-                total_mac_vrfs = sum(len(d.get('vxlan_info', {}).get('mac_vrfs', [])) for d in results)
-                if total_mac_vrfs > len(mac_vrf_sample_list):
-                    f.write(f"    │ ... и ещё {total_mac_vrfs - len(mac_vrf_sample_list)} MAC VRF\n")
-                f.write("    └" + "─" * 30 + "┴" + "─" * 20 + "┴" + "─" * 20 + "┴" + "─" * 20 + "┘\n")
+            if mac_vrf_count == 0:
+                total_width = col1 + col2 + col3 + col4 + col5 + 7  # +7 для рамок ┌┬┬┬┬┐
+                f.write("    │" + "Нет данных".center(total_width) + "│\n")
+            f.write("    └" + "─" * col1 + "┴" + "─" * col2 + "┴" + "─" * col3 + "┴" + "─" * col4 + "┴" + "─" * col5 + "┘\n")
+            f.write(f"\n    Всего MAC VRF: {mac_vrf_count}\n")
             f.write("\n")
 
             # === PORT-CHANNEL (LACP) ===
