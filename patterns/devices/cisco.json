@@ -1,43 +1,117 @@
 {
   "vendor": "Cisco",
-  "version": "1.1",
+  "version": "2.0",
+  "description": "Оптимизированный шаблон для оборудования Cisco (IOS, IOS-XE, NX-OS, ASA)",
+  
   "vendor_signatures": [
-    "^!Command: show running-config",
-    "^switchname ",
-    "^boot nxos bootflash:"
+    "Cisco IOS Software",
+    "Cisco IOS XE Software",
+    "Cisco IOS-XE software",
+    "cisco .+ processor",
+    "Processor board ID",
+    "Copyright (c) 1986-20[0-9][0-9] by Cisco Systems"
   ],
+  
   "detect_patterns": [
     "^version \\d+\\.\\d+",
-    "^interface [\\w\\/\\-]+",
-    "^hostname [\\w\\-]+"
+    "^interface [\\w\\/\\-\\.]+",
+    "^hostname [\\w\\-]+",
+    "^\\s*version \\d+\\.\\d+\\("
   ],
+  
   "name_patterns": [
-    {"pattern": "^switchname\\s+(\\S+)", "group": 1},
-    {"pattern": "^hostname\\s+(\\S+)", "group": 1}
+    {"pattern": "^hostname\\s+([\\w\\-\\.]+)", "group": 1, "priority": 100},
+    {"pattern": "^switchname\\s+([\\w\\-\\.]+)", "group": 1, "priority": 90},
+    {"pattern": "^(\\S+)#show\\s+version", "group": 1, "priority": 80},
+    {"pattern": "^(\\S+)#", "group": 1, "priority": 70}
   ],
+  
   "model_patterns": [
-    {"pattern": "^boot nxos bootflash:/[^/]*(nxos|n9000|n7000|n5000|n3000)\\.([\\d\\.]+)\\.bin", "group": 1},
-    {"pattern": "^version (\\d+\\.\\d+)\\([^\\)]+\\) Bios:version", "group": 1},
-    {"pattern": "^\\s*!\\s*Nexus Operating System \\(NX-OS\\) Software", "group": 0},
-    {"pattern": "^\\s*!\\s*cisco (Nexus \\d+)", "group": 1},
-    {"pattern": "^\\s*!\\s*Hardware.*cisco (Nexus \\d+)", "group": 1}
+    {"pattern": "^cisco\\s+([\\w\\-]+)\\s+\\([^)]+\\)\\s+processor", "group": 1, "priority": 100},
+    {"pattern": "^Model Number\\s*:\\s*([\\w\\-]+)", "group": 1, "priority": 95},
+    {"pattern": "^\\s*Model\\s+Ports\\s+Model", "group": 0, "fallback_pattern": "^\\*?\\s*\\d+\\s+\\d+\\s+([\\w\\-]+)", "fallback_group": 1, "priority": 90},
+    {"pattern": "cisco\\s+(C[\\d]+[A-Z\\-]*)", "group": 1, "priority": 85},
+    {"pattern": "(WS-C[\\d]+[A-Z\\-]*)", "group": 1, "priority": 85},
+    {"pattern": "(C9[\\d]+[A-Z\\-]*)", "group": 1, "priority": 85},
+    {"pattern": "(Nexus\\s*\\d+)", "group": 1, "priority": 80},
+    {"pattern": "(ASA\\s*\\d+)", "group": 1, "priority": 80}
   ],
+  
   "type_inference": [
-    {"any": ["n9000", "n7000", "n5000", "n3000", "vdc ", "feature vpc", "boot nxos"], "type": "switch", "score": 95},
-    {"any": ["ASA", "nameif", "security-level", ": Saved"], "type": "firewall", "score": 90},
-    {"any": ["router ospf", "router bgp", "ip routing"], "type": "router", "score": 85},
-    {"any": ["switchport", "vlan ", "spanning-tree"], "type": "switch", "score": 80}
+    {"any": ["C9500", "C9400", "C9300", "C9200", "WS-C", "C2960", "C3750", "C3650", "Catalyst"], "type": "switch", "score": 95},
+    {"any": ["Nexus", "NX-OS", "n9000", "n7000", "n5000", "n3000", "feature vpc", "boot nxos"], "type": "switch", "score": 95},
+    {"any": ["ASA", "nameif", "security-level", "access-group", ": Saved"], "type": "firewall", "score": 90},
+    {"any": ["router ospf", "router bgp", "router eigrp", "ip routing", "ip forward-protocol"], "type": "router", "score": 85},
+    {"any": ["switchport", "vlan ", "spanning-tree", "vtp mode"], "type": "switch", "score": 80},
+    {"any": ["CAT9K_IOSXE", "CAT9K_LITE_IOSXE"], "type": "switch", "score": 90}
   ],
+  
   "default_device_type": "router_or_switch",
+  
   "network_extraction_rules": {
     "interfaces": {
-      "start": "^interface\\s+(.+)",
-      "ip_pattern": "ip address\\s+(\\S+)\\s+(\\S+)",
-      "disable_pattern": "^\\s*shutdown"
+      "start": "^interface\\s+([\\w\\/\\-\\.]+)",
+      "ip_pattern": "ip address\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)",
+      "disable_pattern": "^\\s*shutdown$"
     },
     "vlans": {
-      "all_pattern": "(?:vlan|vlan batch)\\s+(\\d+)",
-      "active_pattern": "(?:switchport access vlan|switchport trunk allowed vlan)\\s+(\\d+)"
+      "all_pattern": "^vlan\\s+(\\d+)",
+      "active_pattern": "(?:switchport access vlan|switchport trunk allowed vlan add?)\\s+(\\d+)"
     }
+  },
+  
+  "bgp_extraction_rules": {
+    "enabled": true,
+    "asn_pattern": "^\\s*router bgp\\s+(\\d+)",
+    "router_id_pattern": "^\\s*bgp router-id\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)",
+    "neighbor_pattern": "^\\s*neighbor\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)\\s+remote-as\\s+(\\d+)",
+    "neighbor_desc_pattern": "^\\s*neighbor\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)\\s+description\\s+(.+)",
+    "address_family_pattern": "^\\s*address-family\\s+(\\S+)\\s+(\\S+)",
+    "evpn_neighbors_pattern": "^\\s*neighbor\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)\\s+activate\\s*$$.*evpn"
+  },
+  
+  "port_channel_extraction_rules": {
+    "enabled": true,
+    "pattern": "^interface\\s+(Port-channel\\d+)",
+    "members_pattern": "^\\s*channel-group\\s+(\\d+)\\s+mode"
+  },
+  
+  "vxlan_extraction_rules": {
+    "enabled": true,
+    "vni_pattern": "^\\s*vni\\s+(\\d+)",
+    "mcast_group_pattern": "^\\s*mcast-group\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)"
+  },
+  
+  "management_extraction_rules": {
+    "enabled": true,
+    "mgmt_ip_pattern": "^(?:management|mgmt)\\s+ip\\s+address\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)",
+    "default_gateway_pattern": "^\\s*ip default-gateway\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)",
+    "ntp_server_pattern": "^\\s*ntp server\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)",
+    "snmp_server_pattern": "^\\s*snmp-server host\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)"
+  },
+  
+  "model_type_mapping": {
+    "WS-C2960": "switch",
+    "WS-C2960S": "switch",
+    "WS-C2960+": "switch",
+    "WS-C3750": "switch",
+    "WS-C3650": "switch",
+    "WS-C3850": "switch",
+    "C2960": "switch",
+    "C2960S": "switch",
+    "C2960+": "switch",
+    "C3750": "switch",
+    "C3650": "switch",
+    "C3850": "switch",
+    "C9200": "switch",
+    "C9200L": "switch",
+    "C9300": "switch",
+    "C9300L": "switch",
+    "C9400": "switch",
+    "C9404R": "switch",
+    "C9500": "switch",
+    "C9600": "switch",
+    "Nexus": "switch",
+    "ASA": "firewall"
   }
 }

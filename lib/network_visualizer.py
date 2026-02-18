@@ -505,7 +505,7 @@ class NetworkVisualizer:
         return objects
 
     @staticmethod
-    def layout_algorithm_spine_leaf(objects: dict, padding: int = 50, layer_padding: int = 250) -> dict:
+    def layout_algorithm_spine_leaf(objects: dict, padding: int = 80, layer_padding: int = 300) -> dict:
         """
         Алгоритм размещения для архитектуры Spine-Leaf-Border Leaf
         
@@ -552,54 +552,38 @@ class NetworkVisualizer:
         leaf_w, leaf_h = get_device_size(leaf_devices)
         border_w, border_h = get_device_size(border_devices)
         
-        max_width = max(spine_w, leaf_w, border_w)
+        max_width = max(spine_w, leaf_w, border_w, 120)  # Минимальная ширина 120
         
         # === УРОВЕНЬ 1: Spine (верхний) ===
         spine_y = -layer_padding / 2
         if spine_devices:
             sorted_spine = sorted(spine_devices.items(), key=lambda x: x[1].get('name', ''))
             n_spine = len(sorted_spine)
+            # Центрируем Spine устройства
             spine_total_width = n_spine * max_width + (n_spine - 1) * padding
-            spine_start_x = -spine_total_width / 2
+            spine_start_x = -spine_total_width / 2 + max_width / 2
             
             for idx, (dev_id, dev_data) in enumerate(sorted_spine):
-                dw = dev_data.get('width', max_width)
                 dh = dev_data.get('height', 30)
-                dev_data['x'] = spine_start_x + idx * (max_width + padding) + max_width / 2
+                dev_data['x'] = spine_start_x + idx * (max_width + padding)
                 dev_data['y'] = spine_y - dh / 2
         
         # === УРОВЕНЬ 2: Leaf и Border Leaf (нижний) ===
         leaf_y = layer_padding / 2
         
-        # Размещаем Leaf устройства
-        if leaf_devices:
-            sorted_leaf = sorted(leaf_devices.items(), key=lambda x: x[1].get('name', ''))
-            n_leaf = len(sorted_leaf)
-            leaf_total_width = n_leaf * max_width + (n_leaf - 1) * padding
-            leaf_start_x = -leaf_total_width / 2
-            
-            for idx, (dev_id, dev_data) in enumerate(sorted_leaf):
-                dw = dev_data.get('width', max_width)
-                dh = dev_data.get('height', 30)
-                dev_data['x'] = leaf_start_x + idx * (max_width + padding) + max_width / 2
-                dev_data['y'] = leaf_y + dh / 2
+        # Объединяем Leaf и Border Leaf для совместного размещения
+        all_lower = {**leaf_devices, **border_devices}
         
-        # Размещаем Border Leaf устройства (после Leaf)
-        if border_devices:
-            sorted_border = sorted(border_devices.items(), key=lambda x: x[1].get('name', ''))
-            n_border = len(sorted_border)
+        if all_lower:
+            sorted_lower = sorted(all_lower.items(), key=lambda x: x[1].get('name', ''))
+            n_lower = len(sorted_lower)
+            # Центрируем все устройства нижнего уровня
+            lower_total_width = n_lower * max_width + (n_lower - 1) * padding
+            lower_start_x = -lower_total_width / 2 + max_width / 2
             
-            # Если есть Leaf, продолжаем после них, иначе центрируем
-            if leaf_devices:
-                border_start_x = leaf_start_x + n_leaf * (max_width + padding)
-            else:
-                border_total_width = n_border * max_width + (n_border - 1) * padding
-                border_start_x = -border_total_width / 2
-            
-            for idx, (dev_id, dev_data) in enumerate(sorted_border):
-                dw = dev_data.get('width', max_width)
+            for idx, (dev_id, dev_data) in enumerate(sorted_lower):
                 dh = dev_data.get('height', 30)
-                dev_data['x'] = border_start_x + idx * (max_width + padding) + max_width / 2
+                dev_data['x'] = lower_start_x + idx * (max_width + padding)
                 dev_data['y'] = leaf_y + dh / 2
         
         objects['devices'] = devices
@@ -616,11 +600,11 @@ class NetworkVisualizer:
                 'width': 200,
                 'height': 30,
                 'x': 0,
-                'y': spine_y - 80,
+                'y': spine_y - 100,
                 'style': 'text'
             }
         
-        if leaf_devices or border_devices:
+        if all_lower:
             networks['leaf_label'] = {
                 'id': 'leaf_label',
                 'name': '═══ LEAF / BORDER LEAF (Доступ / Граница) ═══',
@@ -629,7 +613,7 @@ class NetworkVisualizer:
                 'width': 400,
                 'height': 30,
                 'x': 0,
-                'y': leaf_y + 80,
+                'y': leaf_y + 100,
                 'style': 'text'
             }
         

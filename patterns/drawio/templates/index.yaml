@@ -11,12 +11,17 @@ templates:
     - switch: switch
     - firewall: firewall
     - router: router
+  D-Link:
+    - switch: switch
   Dell:
     - switch: switch
   F5:
     - load_balancer: default
   Fortinet:
     - firewall: firewall
+  HPE_Aruba:
+    - switch: switch
+    - carrier_switch: switch
   Huawei:
     - carrier_switch: switch
     - olt_device: default
@@ -34,6 +39,13 @@ templates:
     - wireless_controller: default
   Palo_Alto:
     - firewall: firewall
+  Qtech:
+    - switch: switch
+    - router: switch
+  TFortis:
+    - switch: switch
+  Unknown:
+    - switch: default
   common:
     - network: network
     - logical_link: logical_link

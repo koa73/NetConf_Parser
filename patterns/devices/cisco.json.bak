@@ -1,0 +1,43 @@
+{
+  "vendor": "Cisco",
+  "version": "1.1",
+  "vendor_signatures": [
+    "^!Command: show running-config",
+    "^switchname ",
+    "^boot nxos bootflash:"
+  ],
+  "detect_patterns": [
+    "^version \\d+\\.\\d+",
+    "^interface [\\w\\/\\-]+",
+    "^hostname [\\w\\-]+"
+  ],
+  "name_patterns": [
+    {"pattern": "^switchname\\s+(\\S+)", "group": 1},
+    {"pattern": "^hostname\\s+(\\S+)", "group": 1}
+  ],
+  "model_patterns": [
+    {"pattern": "^boot nxos bootflash:/[^/]*(nxos|n9000|n7000|n5000|n3000)\\.([\\d\\.]+)\\.bin", "group": 1},
+    {"pattern": "^version (\\d+\\.\\d+)\\([^\\)]+\\) Bios:version", "group": 1},
+    {"pattern": "^\\s*!\\s*Nexus Operating System \\(NX-OS\\) Software", "group": 0},
+    {"pattern": "^\\s*!\\s*cisco (Nexus \\d+)", "group": 1},
+    {"pattern": "^\\s*!\\s*Hardware.*cisco (Nexus \\d+)", "group": 1}
+  ],
+  "type_inference": [
+    {"any": ["n9000", "n7000", "n5000", "n3000", "vdc ", "feature vpc", "boot nxos"], "type": "switch", "score": 95},
+    {"any": ["ASA", "nameif", "security-level", ": Saved"], "type": "firewall", "score": 90},
+    {"any": ["router ospf", "router bgp", "ip routing"], "type": "router", "score": 85},
+    {"any": ["switchport", "vlan ", "spanning-tree"], "type": "switch", "score": 80}
+  ],
+  "default_device_type": "router_or_switch",
+  "network_extraction_rules": {
+    "interfaces": {
+      "start": "^interface\\s+(.+)",
+      "ip_pattern": "ip address\\s+(\\S+)\\s+(\\S+)",
+      "disable_pattern": "^\\s*shutdown"
+    },
+    "vlans": {
+      "all_pattern": "(?:vlan|vlan batch)\\s+(\\d+)",
+      "active_pattern": "(?:switchport access vlan|switchport trunk allowed vlan)\\s+(\\d+)"
+    }
+  }
+}
