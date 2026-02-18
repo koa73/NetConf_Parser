@@ -1,0 +1,40 @@
+{
+  "vendor": "b4com",
+  "version": "1.0",
+  "vendor_signatures": [
+    "^! Software version: BCOM_",
+    "^feature netconf-ssh",
+    "^feature netconf-tls"
+  ],
+  "detect_patterns": [
+    "^hostname\\s+",
+    "^vlan database",
+    "^interface\\s+",
+    "^nvo vxlan"
+  ],
+  "name_patterns": [
+    {"pattern": "^hostname\\s+(\\S+)", "group": 1}
+  ],
+  "model_patterns": [
+    {"pattern": "^! Software version: (BCOM_[A-Z0-9\\-]+)", "group": 1},
+    {"pattern": "^! Software version: BCOM_([A-Z0-9]+)", "group": 1}
+  ],
+  "type_inference": [
+    {"any": ["evpn", "vxlan", "nvo vxlan", "mac vrf"], "type": "switch", "score": 95},
+    {"any": ["router bgp", "address-family ipv4", "address-family l2vpn evpn"], "type": "router", "score": 90},
+    {"any": ["bridge", "vlan database", "switchport"], "type": "switch", "score": 85},
+    {"any": ["data-center-bridging", "port-group", "load-balance"], "type": "switch", "score": 80}
+  ],
+  "default_device_type": "switch",
+  "network_extraction_rules": {
+    "interfaces": {
+      "start": "^interface\\s+(\\S+)",
+      "ip_pattern": "ip address\\s+(\\S+)\\s+(\\S+)",
+      "disable_pattern": "^\\s*shutdown"
+    },
+    "vlans": {
+      "all_pattern": "vlan\\s+(\\d+)\\s+bridge",
+      "active_pattern": "vlan\\s+(\\d+)\\s+bridge.*state\\s+enable"
+    }
+  }
+}
