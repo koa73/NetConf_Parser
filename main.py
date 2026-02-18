@@ -58,23 +58,25 @@ def main():
 
         # Выводим меню выбора алгоритма размещения
         print("Выберите алгоритм размещения объектов на диаграмме:")
-        print("1. Круговой алгоритм (по умолчанию)")
+        print("1. Круговой алгоритм")
         print("2. Сеточный алгоритм")
         print("3. Силовой алгоритм")
-        print("4. Кластерный алгоритм\n")
-        print("Нажмите Enter для выбора алгоритма по умолчанию (Силовой алгоритм)\n")
+        print("4. Кластерный алгоритм")
+        print("5. Spine-Leaf-Border Leaf (оптимально для CLOS архитектуры)")
+        print("\nНажмите Enter для выбора алгоритма по умолчанию (Spine-Leaf-Border Leaf)\n")
 
-        choice = input("Введите номер алгоритма (1-4) или нажмите Enter: ").strip()
+        choice = input("Введите номер алгоритма (1-5) или нажмите Enter: ").strip()
 
         # Определяем название алгоритма на основе выбора пользователя
         algorithm_map = {
             '1': 'circular',
             '2': 'grid',
             '3': 'force_directed',
-            '4': 'clustered'
+            '4': 'clustered',
+            '5': 'spine_leaf'
         }
 
-        layout_algorithm = algorithm_map.get(choice, 'force_directed')  # По умолчанию круговой
+        layout_algorithm = algorithm_map.get(choice, 'spine_leaf')  # По умолчанию Spine-Leaf
 
         objects = viz.prepare_stencils(links_result, layout_algorithm=layout_algorithm)
 

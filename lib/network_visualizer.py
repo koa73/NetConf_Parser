@@ -178,7 +178,7 @@ class NetworkVisualizer:
                 # patterns имеет структуру: {vendor: [{device_type: template_data}, ...]}
                 if vendor.capitalize() in patterns:
                     vendor_patterns = patterns[vendor.capitalize()]
-                    
+
                     # Ищем шаблон для конкретного типа устройства
                     for pattern in vendor_patterns:
                         # pattern - это словарь в формате {device_type: template_data}
@@ -186,36 +186,46 @@ class NetworkVisualizer:
                             if key.lower() == device_type.lower():
                                 # Копируем шаблон и добавляем дополнительные поля
                                 device_data = template_data.copy()
-                                device_data['x'] = 0
-                                device_data['y'] = 0
-                                device_data['data'] = {}
-                                device_list[device_name] = device_data
+                                device_data['name'] = device_name
+                                device_data['id'] = device_name
                                 device_data['label'] = f"&lt;font style=&quot;color: light-dark(rgb(0, 0, 0), rgb(237, 237, 237)); line-height: 140%; font-size: 9px; &quot;&gt;&amp;nbsp;{device_name}&amp;nbsp;&lt;/font&gt;"
+                                device_list[device_name] = device_data
                                 break
                         else:
-                            continue  # только если внутренний цикл не был прерван
-                        break  # выйти из внешнего цикла, если шаблон найден
+                            continue
+                        break
+                else:
+                    # Вендор не найден в patterns, используем default
+                    if 'default' in patterns:
+                        default_pattern = patterns['default']
+                        for pattern in default_pattern:
+                            for key, template_data in pattern.items():
+                                if key == 'any':
+                                    device_data = template_data.copy()
+                                    device_data['name'] = device_name
+                                    device_data['id'] = device_name
+                                    device_data['label'] = f"&lt;font style=&quot;color: light-dark(rgb(0, 0, 0), rgb(237, 237, 237)); line-height: 140%; font-size: 9px; &quot;&gt;&amp;nbsp;{device_name}&amp;nbsp;&lt;/font&gt;"
+                                    device_list[device_name] = device_data
+                                    break
+                            else:
+                                continue
+                            break
             else:
-                # Если не удалось определить vendor и type, используем шаблон default из словаря patterns
-                # Предполагаем, что шаблон по умолчанию всегда есть в словаре patterns под ключом 'default'
-                default_template = None
-                
-                # Получаем шаблон по умолчанию из ключа 'default'
+                # Если vendor и type не определены, используем дефолтный шаблон
                 if 'default' in patterns:
-                    default_patterns = patterns['default']
-                    if isinstance(default_patterns, list) and len(default_patterns) > 0:
-                        first_pattern = default_patterns[0]
-                        if isinstance(first_pattern, dict):
-                            for device_type, template_data in first_pattern.items():
-                                default_template = template_data
+                    default_pattern = patterns['default']
+                    for pattern in default_pattern:
+                        for key, template_data in pattern.items():
+                            if key == 'any':
+                                device_data = template_data.copy()
+                                device_data['name'] = device_name
+                                device_data['id'] = device_name
+                                device_data['label'] = f"&lt;font style=&quot;color: light-dark(rgb(0, 0, 0), rgb(237, 237, 237)); line-height: 140%; font-size: 9px; &quot;&gt;&amp;nbsp;{device_name}&amp;nbsp;&lt;/font&gt;"
+                                device_list[device_name] = device_data
                                 break
-                
-                # Добавляем дополнительные поля к шаблону
-                device_data = default_template.copy() if default_template else {}
-                device_data['x'] = 0
-                device_data['y'] = 0
-                device_data['data'] = {}
-                device_list[device_name] = device_data
+                        else:
+                            continue
+                        break
 
         return device_list
 
@@ -486,10 +496,145 @@ class NetworkVisualizer:
             objects = self.layout_algorithm_force_directed(objects)
         elif layout_algorithm == 'clustered':
             objects = self.layout_algorithm_clustered(objects)
+        elif layout_algorithm == 'spine_leaf':
+            objects = self.layout_algorithm_spine_leaf(objects)
         else:
-            # По умолчанию используем круговой алгоритм
-            objects = self.layout_algorithm_circular(objects)
+            # По умолчанию используем алгоритм Spine-Leaf
+            objects = self.layout_algorithm_spine_leaf(objects)
 
+        return objects
+
+    @staticmethod
+    def layout_algorithm_spine_leaf(objects: dict, padding: int = 50, layer_padding: int = 250) -> dict:
+        """
+        Алгоритм размещения для архитектуры Spine-Leaf-Border Leaf
+        
+        Создаёт иерархическое дерево:
+        - Корень (верхний уровень): Spine устройства
+        - Второй уровень: Leaf и Border Leaf устройства
+        
+        Args:
+            objects (dict): Словарь с объектами {'devices': devices, 'networks': networks, 'links': links}
+            padding (int): Горизонтальный отступ между устройствами
+            layer_padding (int): Вертикальный отступ между уровнями
+            
+        Returns:
+            dict: Модифицированный словарь с проставленными координатами
+        """
+        devices = objects['devices']
+        
+        # Классификация устройств по ролям
+        spine_devices = {}
+        leaf_devices = {}
+        border_devices = {}
+        
+        for dev_id, dev_data in devices.items():
+            dev_name = dev_data.get('name', '').lower()
+            
+            if 'spn' in dev_name or 'spine' in dev_name:
+                spine_devices[dev_id] = dev_data
+            elif 'brl' in dev_name or 'border' in dev_name:
+                border_devices[dev_id] = dev_data
+            elif 'lf' in dev_name or 'leaf' in dev_name:
+                leaf_devices[dev_id] = dev_data
+            else:
+                leaf_devices[dev_id] = dev_data
+        
+        # Определяем размеры устройств
+        def get_device_size(device_dict):
+            if not device_dict:
+                return 90, 30
+            widths = [d.get('width', 90) for d in device_dict.values()]
+            heights = [d.get('height', 30) for d in device_dict.values()]
+            return max(widths), max(heights)
+        
+        spine_w, spine_h = get_device_size(spine_devices)
+        leaf_w, leaf_h = get_device_size(leaf_devices)
+        border_w, border_h = get_device_size(border_devices)
+        
+        max_width = max(spine_w, leaf_w, border_w)
+        
+        # === УРОВЕНЬ 1: Spine (верхний) ===
+        spine_y = -layer_padding / 2
+        if spine_devices:
+            sorted_spine = sorted(spine_devices.items(), key=lambda x: x[1].get('name', ''))
+            n_spine = len(sorted_spine)
+            spine_total_width = n_spine * max_width + (n_spine - 1) * padding
+            spine_start_x = -spine_total_width / 2
+            
+            for idx, (dev_id, dev_data) in enumerate(sorted_spine):
+                dw = dev_data.get('width', max_width)
+                dh = dev_data.get('height', 30)
+                dev_data['x'] = spine_start_x + idx * (max_width + padding) + max_width / 2
+                dev_data['y'] = spine_y - dh / 2
+        
+        # === УРОВЕНЬ 2: Leaf и Border Leaf (нижний) ===
+        leaf_y = layer_padding / 2
+        
+        # Размещаем Leaf устройства
+        if leaf_devices:
+            sorted_leaf = sorted(leaf_devices.items(), key=lambda x: x[1].get('name', ''))
+            n_leaf = len(sorted_leaf)
+            leaf_total_width = n_leaf * max_width + (n_leaf - 1) * padding
+            leaf_start_x = -leaf_total_width / 2
+            
+            for idx, (dev_id, dev_data) in enumerate(sorted_leaf):
+                dw = dev_data.get('width', max_width)
+                dh = dev_data.get('height', 30)
+                dev_data['x'] = leaf_start_x + idx * (max_width + padding) + max_width / 2
+                dev_data['y'] = leaf_y + dh / 2
+        
+        # Размещаем Border Leaf устройства (после Leaf)
+        if border_devices:
+            sorted_border = sorted(border_devices.items(), key=lambda x: x[1].get('name', ''))
+            n_border = len(sorted_border)
+            
+            # Если есть Leaf, продолжаем после них, иначе центрируем
+            if leaf_devices:
+                border_start_x = leaf_start_x + n_leaf * (max_width + padding)
+            else:
+                border_total_width = n_border * max_width + (n_border - 1) * padding
+                border_start_x = -border_total_width / 2
+            
+            for idx, (dev_id, dev_data) in enumerate(sorted_border):
+                dw = dev_data.get('width', max_width)
+                dh = dev_data.get('height', 30)
+                dev_data['x'] = border_start_x + idx * (max_width + padding) + max_width / 2
+                dev_data['y'] = leaf_y + dh / 2
+        
+        objects['devices'] = devices
+        
+        # Добавляем метки уровней
+        networks = objects.get('networks', {})
+        
+        if spine_devices:
+            networks['spine_label'] = {
+                'id': 'spine_label',
+                'name': '═══ SPINE (Ядро) ═══',
+                'vendor': 'common',
+                'device_type': 'network',
+                'width': 200,
+                'height': 30,
+                'x': 0,
+                'y': spine_y - 80,
+                'style': 'text'
+            }
+        
+        if leaf_devices or border_devices:
+            networks['leaf_label'] = {
+                'id': 'leaf_label',
+                'name': '═══ LEAF / BORDER LEAF (Доступ / Граница) ═══',
+                'vendor': 'common',
+                'device_type': 'network',
+                'width': 400,
+                'height': 30,
+                'x': 0,
+                'y': leaf_y + 80,
+                'style': 'text'
+            }
+        
+        objects['networks'] = networks
+        
         return objects
 
     @staticmethod
