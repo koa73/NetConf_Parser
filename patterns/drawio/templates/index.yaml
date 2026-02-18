@@ -4,6 +4,8 @@ templates:
   Aruba:
     - switch: switch
     - wireless_controller: default.yaml
+  B4com:
+    - switch: switch
   Cisco:
     - switch: switch
     - firewall: firewall

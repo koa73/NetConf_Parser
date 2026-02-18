@@ -42,6 +42,9 @@ def main():
     ReportGenerator.print_short_report(devices)
     ReportGenerator.print_topology_analysis(links_result)
     ReportGenerator.write_detailed_report(devices, REPORT, links_result, CONFIG_DIR)
+    
+    # Генерация текстовой ASCII-диаграммы топологии
+    ReportGenerator.draw_topology_ascii(devices, links_result, REPORT)
 
 
     if links_result:

@@ -1,6 +1,6 @@
 {
   "vendor": "b4com",
-  "version": "1.0",
+  "version": "1.1",
   "vendor_signatures": [
     "^! Software version: BCOM_",
     "^feature netconf-ssh",
@@ -36,5 +36,39 @@
       "all_pattern": "vlan\\s+(\\d+)\\s+bridge",
       "active_pattern": "vlan\\s+(\\d+)\\s+bridge.*state\\s+enable"
     }
+  },
+  "bgp_extraction_rules": {
+    "enabled": true,
+    "asn_pattern": "^router bgp\\s+(\\d+)",
+    "router_id_pattern": "bgp router-id\\s+(\\S+)",
+    "neighbor_pattern": "^\\s+neighbor\\s+(\\S+)\\s+remote-as\\s+(\\d+)",
+    "neighbor_desc_pattern": "^\\s+neighbor\\s+(\\S+)\\s+description\\s+(\\S+)",
+    "address_family_pattern": "^\\s+address-family\\s+(\\S+)\\s+(\\S+)",
+    "evpn_neighbors_pattern": "^\\s+neighbor\\s+(\\S+)\\s+activate\\s*$"
+  },
+  "port_channel_extraction_rules": {
+    "enabled": true,
+    "port_channel_pattern": "^interface\\s+(po\\d+)",
+    "port_channel_desc_pattern": "^\\s+description\\s+(.+)",
+    "port_channel_members_pattern": "^\\s+channel-group\\s+(\\d+)\\s+mode\\s+(\\S+)",
+    "port_channel_vlans_pattern": "^\\s+switchport trunk allowed vlan.*?([\\d\\-,]+)"
+  },
+  "vxlan_extraction_rules": {
+    "enabled": true,
+    "vtep_ip_pattern": "^nvo vxlan vtep-ip-global\\s+(\\S+)",
+    "vni_pattern": "^nvo vxlan id\\s+(\\d+)\\s+ingress-replication bridge-vlan\\s+(\\d+)",
+    "vni_name_pattern": "^\\s+vni-name\\s+(\\S+)",
+    "evpn_irb_mac_pattern": "^evpn irb-forwarding anycast-gateway-mac\\s+(\\S+)",
+    "mac_vrf_pattern": "^mac vrf\\s+(\\S+)",
+    "mac_vrf_rd_pattern": "^\\s+rd\\s+(\\S+)",
+    "mac_vrf_rt_pattern": "^\\s+route-target both\\s+(\\S+)",
+    "mac_vrf_desc_pattern": "^\\s+description\\s+(\\S+)"
+  },
+  "management_extraction_rules": {
+    "enabled": true,
+    "mgmt_interface_pattern": "^interface\\s+(eth0|mgmt\\d+)",
+    "mgmt_ip_pattern": "^\\s+ip address\\s+(\\S+)\\s+(\\S+)",
+    "mgmt_vrf_pattern": "^\\s+ip vrf forwarding\\s+(\\S+)",
+    "default_route_pattern": "^ip route vrf (\\S+)\\s+0\\.0\\.0\\.0/0\\s+(\\S+)"
   }
 }

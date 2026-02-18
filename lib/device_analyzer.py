@@ -291,8 +291,382 @@ class NetworkDevice:
         self.total_vlans = network_info["total_vlans"]
         self.active_vlans = network_info["active_vlans"]
         self.all_vlans = network_info["all_vlans"]
+        
+        # Дополнительное извлечение всех IP интерфейсов для b4com
+        self.all_ip_interfaces = self._extract_all_ip_interfaces()
+
+        # Этап 5: Извлечение дополнительной информации (BGP, Port-Channel, VXLAN, Management)
+        bgp_rules = pattern.get("bgp_extraction_rules", {})
+        if bgp_rules.get("enabled"):
+            self.bgp_info = self._extract_bgp_info(bgp_rules)
+        else:
+            self.bgp_info = {}
+        
+        pc_rules = pattern.get("port_channel_extraction_rules", {})
+        if pc_rules.get("enabled"):
+            self.port_channels = self._extract_port_channels(pc_rules)
+        else:
+            self.port_channels = []
+        
+        vxlan_rules = pattern.get("vxlan_extraction_rules", {})
+        if vxlan_rules.get("enabled"):
+            self.vxlan_info = self._extract_vxlan_info(vxlan_rules)
+        else:
+            self.vxlan_info = {}
+        
+        mgmt_rules = pattern.get("management_extraction_rules", {})
+        if mgmt_rules.get("enabled"):
+            self.management_info = self._extract_management_info(mgmt_rules)
+        else:
+            self.management_info = {}
 
         return True
+
+    def _extract_bgp_info(self, rules: Dict) -> Dict[str, Any]:
+        """Извлекает информацию о BGP конфигурации."""
+        result = {
+            "enabled": False,
+            "asn": None,
+            "router_id": None,
+            "neighbors": [],
+            "evpn_neighbors": [],
+            "address_families": []
+        }
+        
+        neighbor_descriptions = {}
+        
+        for line in self.content_lines:
+            # ASN
+            if rules.get("asn_pattern"):
+                match = re.search(rules["asn_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["enabled"] = True
+                    result["asn"] = match.group(1)
+            
+            # Router ID
+            if rules.get("router_id_pattern"):
+                match = re.search(rules["router_id_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["router_id"] = match.group(1)
+            
+            # Neighbor с remote-as
+            if rules.get("neighbor_pattern"):
+                match = re.search(rules["neighbor_pattern"], line, re.IGNORECASE)
+                if match:
+                    neighbor_ip = match.group(1)
+                    neighbor_as = match.group(2)
+                    # Проверяем, есть ли уже такой сосед
+                    existing = next((n for n in result["neighbors"] if n["ip"] == neighbor_ip), None)
+                    if existing:
+                        existing["remote_as"] = neighbor_as
+                    else:
+                        result["neighbors"].append({
+                            "ip": neighbor_ip,
+                            "remote_as": neighbor_as,
+                            "description": neighbor_descriptions.get(neighbor_ip, ""),
+                            "evpn_enabled": False
+                        })
+            
+            # Neighbor description
+            if rules.get("neighbor_desc_pattern"):
+                match = re.search(rules["neighbor_desc_pattern"], line, re.IGNORECASE)
+                if match:
+                    neighbor_ip = match.group(1)
+                    description = match.group(2)
+                    neighbor_descriptions[neighbor_ip] = description
+                    # Обновляем существующего соседа
+                    existing = next((n for n in result["neighbors"] if n["ip"] == neighbor_ip), None)
+                    if existing:
+                        existing["description"] = description
+            
+            # Address-family
+            if rules.get("address_family_pattern"):
+                match = re.search(rules["address_family_pattern"], line, re.IGNORECASE)
+                if match:
+                    af = f"{match.group(1)} {match.group(2)}"
+                    if af not in result["address_families"]:
+                        result["address_families"].append(af)
+            
+            # EVPN neighbor activate
+            if rules.get("evpn_neighbors_pattern"):
+                match = re.search(rules["evpn_neighbors_pattern"], line, re.IGNORECASE)
+                if match:
+                    neighbor_ip = match.group(1)
+                    existing = next((n for n in result["neighbors"] if n["ip"] == neighbor_ip), None)
+                    if existing:
+                        existing["evpn_enabled"] = True
+                    result["evpn_neighbors"].append(neighbor_ip)
+        
+        # Применяем описания ко всем соседям
+        for neighbor in result["neighbors"]:
+            if not neighbor["description"]:
+                neighbor["description"] = neighbor_descriptions.get(neighbor["ip"], "")
+        
+        return result
+
+    def _extract_port_channels(self, rules: Dict) -> List[Dict[str, Any]]:
+        """Извлекает информацию о Port-Channel интерфейсах."""
+        port_channels = []
+        current_pc = None
+        
+        for line in self.content_lines:
+            # Новый Port-Channel
+            if rules.get("port_channel_pattern"):
+                match = re.search(rules["port_channel_pattern"], line, re.IGNORECASE)
+                if match:
+                    if current_pc:
+                        port_channels.append(current_pc)
+                    current_pc = {
+                        "name": match.group(1),
+                        "description": "",
+                        "members": [],
+                        "mode": "",
+                        "vlans": "",
+                        "shutdown": False
+                    }
+                    continue
+            
+            if current_pc:
+                # Description
+                if rules.get("port_channel_desc_pattern"):
+                    match = re.search(rules["port_channel_desc_pattern"], line, re.IGNORECASE)
+                    if match:
+                        current_pc["description"] = match.group(1).strip()
+                
+                # Channel-group members
+                if rules.get("port_channel_members_pattern"):
+                    match = re.search(rules["port_channel_members_pattern"], line, re.IGNORECASE)
+                    if match:
+                        current_pc["members"].append({
+                            "group": match.group(1),
+                            "mode": match.group(2)
+                        })
+                
+                # VLANs
+                if rules.get("port_channel_vlans_pattern"):
+                    match = re.search(rules["port_channel_vlans_pattern"], line, re.IGNORECASE)
+                    if match:
+                        current_pc["vlans"] = match.group(1)
+                
+                # Shutdown status
+                if re.search(r"^\s*shutdown\s*$", line, re.IGNORECASE):
+                    current_pc["shutdown"] = True
+        
+        if current_pc:
+            port_channels.append(current_pc)
+        
+        return port_channels
+
+    def _extract_vxlan_info(self, rules: Dict) -> Dict[str, Any]:
+        """Извлекает информацию о VXLAN конфигурации."""
+        result = {
+            "enabled": False,
+            "vtep_ip": None,
+            "vnis": [],
+            "anycast_mac": None,
+            "mac_vrfs": []
+        }
+        
+        current_mac_vrf = None
+        in_mac_vrf = False
+        
+        for line in self.content_lines:
+            # VTEP IP
+            if rules.get("vtep_ip_pattern"):
+                match = re.search(rules["vtep_ip_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["enabled"] = True
+                    result["vtep_ip"] = match.group(1)
+            
+            # VNI
+            if rules.get("vni_pattern"):
+                match = re.search(rules["vni_pattern"], line, re.IGNORECASE)
+                if match:
+                    vni_id = match.group(1)
+                    bridge_vlan = match.group(2)
+                    result["vnis"].append({
+                        "vni": vni_id,
+                        "bridge_vlan": bridge_vlan,
+                        "name": ""
+                    })
+            
+            # VNI name
+            if rules.get("vni_name_pattern"):
+                match = re.search(rules["vni_name_pattern"], line, re.IGNORECASE)
+                if match:
+                    if result["vnis"]:
+                        result["vnis"][-1]["name"] = match.group(1)
+            
+            # Anycast gateway MAC
+            if rules.get("evpn_irb_mac_pattern"):
+                match = re.search(rules["evpn_irb_mac_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["anycast_mac"] = match.group(1)
+            
+            # MAC VRF start - проверяем начало секции
+            if rules.get("mac_vrf_pattern"):
+                match = re.search(rules["mac_vrf_pattern"], line, re.IGNORECASE)
+                if match:
+                    if current_mac_vrf:
+                        result["mac_vrfs"].append(current_mac_vrf)
+                    current_mac_vrf = {
+                        "name": match.group(1),
+                        "rd": "",
+                        "route_target": "",
+                        "description": ""
+                    }
+                    in_mac_vrf = True
+                    continue
+            
+            if in_mac_vrf and current_mac_vrf:
+                # RD
+                if rules.get("mac_vrf_rd_pattern"):
+                    match = re.search(rules["mac_vrf_rd_pattern"], line, re.IGNORECASE)
+                    if match:
+                        current_mac_vrf["rd"] = match.group(1)
+                
+                # Route-target
+                if rules.get("mac_vrf_rt_pattern"):
+                    match = re.search(rules["mac_vrf_rt_pattern"], line, re.IGNORECASE)
+                    if match:
+                        current_mac_vrf["route_target"] = match.group(1)
+                
+                # Description
+                if rules.get("mac_vrf_desc_pattern"):
+                    match = re.search(rules["mac_vrf_desc_pattern"], line, re.IGNORECASE)
+                    if match:
+                        current_mac_vrf["description"] = match.group(1)
+                
+                # Выход из секции MAC VRF - новая секция или конец
+                if re.search(r"^mac vrf\s+\S+", line, re.IGNORECASE) and current_mac_vrf["name"] != line.split()[-1]:
+                    pass  # Обработано выше
+                elif re.search(r"^evpn irb-forwarding", line, re.IGNORECASE):
+                    in_mac_vrf = False
+        
+        if current_mac_vrf:
+            result["mac_vrfs"].append(current_mac_vrf)
+        
+        return result
+
+    def _extract_management_info(self, rules: Dict) -> Dict[str, Any]:
+        """Извлекает информацию об управлении."""
+        result = {
+            "mgmt_interface": None,
+            "mgmt_ip": None,
+            "mgmt_mask": None,
+            "mgmt_vrf": None,
+            "default_gateway": None,
+            "default_gateway_iface": None
+        }
+        
+        in_mgmt_interface = False
+        
+        for line in self.content_lines:
+            # Management interface
+            if rules.get("mgmt_interface_pattern"):
+                match = re.search(rules["mgmt_interface_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["mgmt_interface"] = match.group(1)
+                    in_mgmt_interface = True
+                    continue
+            
+            if in_mgmt_interface:
+                # Management VRF
+                if rules.get("mgmt_vrf_pattern"):
+                    match = re.search(rules["mgmt_vrf_pattern"], line, re.IGNORECASE)
+                    if match:
+                        result["mgmt_vrf"] = match.group(1)
+                
+                # Management IP - CIDR формат (10.7.8.1/24) или с маской
+                if rules.get("mgmt_ip_pattern"):
+                    # CIDR формат
+                    cidr_match = re.search(r"ip address\s+(\S+)/(\d+)", line, re.IGNORECASE)
+                    if cidr_match:
+                        result["mgmt_ip"] = cidr_match.group(1)
+                        result["mgmt_mask"] = cidr_match.group(2)
+                    else:
+                        match = re.search(rules["mgmt_ip_pattern"], line, re.IGNORECASE)
+                        if match:
+                            result["mgmt_ip"] = match.group(1)
+                            result["mgmt_mask"] = match.group(2)
+                
+                # Выход из секции интерфейса
+                if re.search(r"^interface\s+", line, re.IGNORECASE) and not re.search(r"^interface\s+(eth0|mgmt)", line, re.IGNORECASE):
+                    in_mgmt_interface = False
+            
+            # Default route
+            if rules.get("default_route_pattern"):
+                match = re.search(rules["default_route_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["mgmt_vrf"] = match.group(1)
+                    result["default_gateway"] = match.group(2)
+                    # Пытаемся извлечь интерфейс из следующей строки или из gateway
+                    gw_parts = result["default_gateway"].split()
+                    if len(gw_parts) > 1:
+                        result["default_gateway"] = gw_parts[0]
+                        result["default_gateway_iface"] = gw_parts[1]
+        
+        return result
+
+    def _extract_all_ip_interfaces(self) -> List[Dict[str, str]]:
+        """Извлекает все интерфейсы с IP адресами из конфигурации."""
+        interfaces = []
+        current_interface = None
+        is_shutdown = False
+        
+        for line in self.content_lines:
+            # Проверка на интерфейс
+            intf_match = re.search(r"^interface\s+(\S+)", line, re.IGNORECASE)
+            if intf_match:
+                # Сохраняем предыдущий интерфейс если был IP
+                if current_interface and not is_shutdown and current_interface.get('ip'):
+                    interfaces.append({
+                        'interface': current_interface['name'],
+                        'ip': current_interface.get('ip'),
+                        'mask': current_interface.get('mask'),
+                        'description': current_interface.get('description', '')
+                    })
+                
+                current_interface = {
+                    'name': intf_match.group(1),
+                    'ip': None,
+                    'mask': None,
+                    'description': ''
+                }
+                is_shutdown = False
+                continue
+            
+            if current_interface:
+                # IP адрес в формате CIDR (10.7.0.0/31) или с маской (10.7.0.0 255.255.255.254)
+                ip_cidr_match = re.search(r"ip address\s+(\S+)/(\d+)", line, re.IGNORECASE)
+                if ip_cidr_match:
+                    current_interface['ip'] = ip_cidr_match.group(1)
+                    current_interface['mask'] = ip_cidr_match.group(2)  # CIDR префикс
+                else:
+                    ip_mask_match = re.search(r"ip address\s+(\S+)\s+(\S+)", line, re.IGNORECASE)
+                    if ip_mask_match:
+                        current_interface['ip'] = ip_mask_match.group(1)
+                        current_interface['mask'] = ip_mask_match.group(2)
+                
+                # Description
+                desc_match = re.search(r"description\s+(.+)", line, re.IGNORECASE)
+                if desc_match:
+                    current_interface['description'] = desc_match.group(1).strip()
+                
+                # Shutdown
+                if re.search(r"^\s*shutdown\s*$", line, re.IGNORECASE):
+                    is_shutdown = True
+        
+        # Последний интерфейс
+        if current_interface and not is_shutdown and current_interface.get('ip'):
+            interfaces.append({
+                'interface': current_interface['name'],
+                'ip': current_interface['ip'],
+                'mask': current_interface['mask'],
+                'description': current_interface.get('description', '')
+            })
+        
+        return interfaces
 
     def to_dict(self) -> Dict[str, Any]:
         """Возвращает результаты анализа в виде словаря."""
@@ -305,7 +679,12 @@ class NetworkDevice:
             "routing_networks": self.routing_networks,
             "total_vlans": self.total_vlans,
             "active_vlans": self.active_vlans,
-            "all_vlans": self.all_vlans
+            "all_vlans": self.all_vlans,
+            "bgp_info": getattr(self, 'bgp_info', {}),
+            "port_channels": getattr(self, 'port_channels', []),
+            "vxlan_info": getattr(self, 'vxlan_info', {}),
+            "management_info": getattr(self, 'management_info', {}),
+            "all_ip_interfaces": getattr(self, 'all_ip_interfaces', [])
         }
 
 
@@ -316,6 +695,10 @@ class NetworkTopologyAnalyzer:
     def netmask_to_prefix(netmask: str) -> int:
         """Преобразует маску из dotted-decimal в префикс."""
         try:
+            # Обработка CIDR нотации (например, "31", "30")
+            if netmask_str := netmask.strip():
+                if netmask_str.isdigit():
+                    return int(netmask_str)
             return ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
         except ValueError as e:
             raise ValueError(f"Некорректная маска '{netmask}': {e}")
@@ -330,51 +713,48 @@ class NetworkTopologyAnalyzer:
     @staticmethod
     def parse_interface_network(network_entry: str) -> Dict[str, Any]:
         """Парсит запись сети интерфейса."""
-        try:
-            ip_str, netmask_str = network_entry.split('/')
-        except ValueError:
-            # If the network entry doesn't contain '/', return default values
-            return {
-                'ip': network_entry,
-                'prefix': 32,  # Default to host route
-                'network_cidr': f"{network_entry}/32",
-                'is_loopback': False,
-                'is_mgmt_network': False,
-                'is_p2p': False
-            }
-
-        # Handle non-standard netmask values like 'ANY'
-        if not netmask_str or netmask_str.upper() == 'ANY':
-            return {
-                'ip': ip_str,
-                'prefix': 0,  # Default for 'any'
-                'network_cidr': f"{ip_str}/0",
-                'is_loopback': False,
-                'is_mgmt_network': False,
-                'is_p2p': False
-            }
-
-        try:
-            prefix = NetworkTopologyAnalyzer.netmask_to_prefix(netmask_str)
-            network_cidr = NetworkTopologyAnalyzer.calculate_network_address(ip_str, netmask_str)
-        except ValueError:
-            # If netmask is invalid, use defaults
+        # Обработка формата "ip/mask" или "ip mask" или "ip/secondary"
+        parts = network_entry.replace('secondary', '').strip().split()
+        if len(parts) >= 1:
+            network_str = parts[0]
+            if '/' in network_str:
+                ip_str, netmask_str = network_str.split('/', 1)
+            else:
+                ip_str = network_str
+                netmask_str = '32'  # Default to host route
+            
+            # Обработка CIDR нотации
+            if netmask_str.isdigit():
+                prefix = int(netmask_str)
+            else:
+                try:
+                    prefix = NetworkTopologyAnalyzer.netmask_to_prefix(netmask_str)
+                except ValueError:
+                    prefix = 32
+            
+            # Вычисляем реальный адрес сети (network address)
+            try:
+                network = ipaddress.IPv4Network(f'{ip_str}/{prefix}', strict=False)
+                network_cidr = str(network)
+            except ValueError:
+                network_cidr = f"{ip_str}/{prefix}"
+            
             return {
                 'ip': ip_str,
-                'prefix': 32,  # Default to host route
-                'network_cidr': f"{ip_str}/32",
-                'is_loopback': False,
-                'is_mgmt_network': False,
-                'is_p2p': False
+                'prefix': prefix,
+                'network_cidr': network_cidr,
+                'is_loopback': prefix == 32,
+                'is_mgmt_network': prefix in (24, 23, 22),
+                'is_p2p': prefix in (31, 30)
             }
-
+        
         return {
-            'ip': ip_str,
-            'prefix': prefix,
-            'network_cidr': network_cidr,
-            'is_loopback': prefix == 32,
-            'is_mgmt_network': netmask_str in ('255.255.255.0', '255.255.254.0', '255.255.252.0'),
-            'is_p2p': prefix in (31, 30)
+            'ip': network_entry,
+            'prefix': 32,
+            'network_cidr': f"{network_entry}/32",
+            'is_loopback': False,
+            'is_mgmt_network': False,
+            'is_p2p': False
         }
 
     @staticmethod
@@ -404,42 +784,108 @@ class NetworkTopologyAnalyzer:
     def extract_device_interfaces(device: Dict[str, Any], filter_type: str = 'all') -> List[Dict[str, Any]]:
         """Извлекает интерфейсы устройства с фильтрацией по типу."""
         interfaces = []
+        device_name = device.get('device_name', 'unknown')
+        processed_networks = set()
+        
+        # 1. Все IP интерфейсы из all_ip_interfaces (для b4com)
+        for intf_entry in device.get('all_ip_interfaces', []):
+            interface_name = intf_entry.get('interface', '')
+            ip = intf_entry.get('ip')
+            mask = intf_entry.get('mask', '32')
+            description = intf_entry.get('description', '')
+            
+            if interface_name and ip:
+                # Преобразуем маску
+                if mask.isdigit():
+                    prefix = int(mask)
+                else:
+                    try:
+                        prefix = NetworkTopologyAnalyzer.netmask_to_prefix(mask)
+                    except ValueError:
+                        prefix = 32
+                
+                # Вычисляем реальный адрес сети
+                try:
+                    network = ipaddress.IPv4Network(f'{ip}/{prefix}', strict=False)
+                    network_cidr = str(network)
+                except ValueError:
+                    network_cidr = f"{ip}/{prefix}"
 
-        for intf in device.get('routing_networks', []):
-            interface_name = intf['interface']
-            network_str = intf['network']
-
-            parsed = NetworkTopologyAnalyzer.parse_interface_network(network_str)
-            base_intf, subif_numbers = NetworkTopologyAnalyzer.extract_interface_number(interface_name)
-
-            intf_data = {
-                'interface': interface_name,
-                'base_interface': base_intf,
-                'subif_numbers': subif_numbers,
-                'ip': parsed['ip'],
-                'prefix': parsed['prefix'],
-                'network_cidr': parsed['network_cidr'],
-                'is_physical': NetworkTopologyAnalyzer.is_physical_interface(interface_name),
-                'is_mgmt': NetworkTopologyAnalyzer.is_mgmt_interface(interface_name, parsed['is_mgmt_network']),
-                'is_loopback': parsed['is_loopback'],
-                'is_p2p': parsed['is_p2p']
-            }
-
-            # Фильтрация
-            if filter_type == 'physical':
-                if not (intf_data['is_physical'] and intf_data['is_p2p'] and not intf_data['is_loopback']):
+                # Пропускаем дубликаты и loopback
+                if network_cidr in processed_networks:
                     continue
-            elif filter_type == 'mgmt':
-                if not (intf_data['is_mgmt'] and not intf_data['is_loopback']):
-                    continue
-            elif filter_type == 'logical':
-                if (intf_data['is_loopback'] or
-                        intf_data['is_mgmt'] or
-                        (intf_data['is_physical'] and intf_data['is_p2p'])):
-                    continue
-
-            interfaces.append(intf_data)
-
+                processed_networks.add(network_cidr)
+                
+                base_intf, subif_numbers = NetworkTopologyAnalyzer.extract_interface_number(interface_name)
+                
+                intf_data = {
+                    'interface': interface_name,
+                    'base_interface': base_intf,
+                    'subif_numbers': subif_numbers,
+                    'ip': ip,
+                    'prefix': prefix,
+                    'network_cidr': network_cidr,
+                    'description': description,
+                    'is_physical': NetworkTopologyAnalyzer.is_physical_interface(interface_name),
+                    'is_mgmt': NetworkTopologyAnalyzer.is_mgmt_interface(interface_name, prefix in (24, 23, 22)),
+                    'is_loopback': interface_name.lower().startswith('lo'),
+                    'is_p2p': prefix in (31, 30),
+                    'source': 'all_ip'
+                }
+                
+                # Фильтрация
+                if filter_type == 'physical':
+                    if not (intf_data['is_physical'] and intf_data['is_p2p'] and not intf_data['is_loopback']):
+                        continue
+                elif filter_type == 'mgmt':
+                    if not (intf_data['is_mgmt'] and not intf_data['is_loopback']):
+                        continue
+                elif filter_type == 'logical':
+                    if (intf_data['is_loopback'] or
+                            intf_data['is_mgmt'] or
+                            (intf_data['is_physical'] and intf_data['is_p2p'])):
+                        continue
+                
+                interfaces.append(intf_data)
+        
+        # 2. Management interface из management_info (если ещё не добавлен)
+        if filter_type in ('all', 'mgmt'):
+            mgmt_info = device.get('management_info', {})
+            if mgmt_info.get('mgmt_interface') and mgmt_info.get('mgmt_ip'):
+                mgmt_ip = mgmt_info['mgmt_ip']
+                mgmt_mask = mgmt_info.get('mgmt_mask', '24')
+                mgmt_intf = mgmt_info['mgmt_interface']
+                
+                # Проверяем, не добавлен ли уже
+                already_added = any(
+                    intf['interface'] == mgmt_intf and intf['ip'] == mgmt_ip 
+                    for intf in interfaces
+                )
+                
+                if not already_added:
+                    # Преобразуем маску если нужно
+                    if mgmt_mask.isdigit():
+                        prefix = int(mgmt_mask)
+                    else:
+                        try:
+                            prefix = NetworkTopologyAnalyzer.netmask_to_prefix(mgmt_mask)
+                        except ValueError:
+                            prefix = 24
+                    
+                    interfaces.append({
+                        'interface': mgmt_intf,
+                        'base_interface': mgmt_intf,
+                        'subif_numbers': [],
+                        'ip': mgmt_ip,
+                        'prefix': prefix,
+                        'network_cidr': f"{mgmt_ip}/{prefix}",
+                        'is_physical': True,
+                        'is_mgmt': True,
+                        'is_loopback': False,
+                        'is_p2p': False,
+                        'source': 'management'
+                    })
+        
         return interfaces
 
     @staticmethod
@@ -957,3 +1403,271 @@ class ReportGenerator:
             f.write(f"\n✅ Детальная информация сохранена в файл: {output_file}\n")
 
         print(f"✅ Детальная информация сохранена в файл: \033[32m{output_file}\033[0m\n\n")
+
+    @staticmethod
+    def draw_topology_ascii(results: List[Dict[str, Any]], 
+                            links_result: Dict[str, List[List[str]]],
+                            output_file: str) -> None:
+        """Генерирует текстовую ASCII-диаграмму топологии и расширенную информацию."""
+        from datetime import datetime
+
+        with open(output_file, "a", encoding='utf-8') as f:
+            # Заголовок секции топологии
+            f.write("\n" + "=" * 130 + "\n")
+            f.write(" 📊 ТЕКСТОВАЯ КАРТА ТОПОЛОГИИ СЕТИ\n")
+            f.write("=" * 130 + "\n\n")
+
+            # === СПИСЕК УСТРОЙСТВ ПО РОЛЯМ ===
+            f.write("┌" + "─" * 128 + "┐\n")
+            f.write("│" + " СПИСОК УСТРОЙСТВ ПО РОЛЯМ ".center(128) + "│\n")
+            f.write("└" + "─" * 128 + "┘\n\n")
+
+            spine_devices = [r for r in results if 'spn' in r['device_name'].lower()]
+            leaf_devices = [r for r in results if 'lf' in r['device_name'].lower() and 'brl' not in r['device_name'].lower()]
+            border_devices = [r for r in results if 'brl' in r['device_name'].lower()]
+
+            f.write("  Spine (Ядро):\n")
+            for dev in spine_devices:
+                vxlan_ip = dev.get('vxlan_info', {}).get('vtep_ip', 'N/A')
+                bgp_asn = dev.get('bgp_info', {}).get('asn', 'N/A')
+                f.write(f"    ├── {dev['device_name']:<25} VTEP: {vxlan_ip:<15} ASN: {bgp_asn}\n")
+            f.write("\n")
+
+            f.write("  Leaf (Доступ):\n")
+            for dev in leaf_devices:
+                vxlan_ip = dev.get('vxlan_info', {}).get('vtep_ip', 'N/A')
+                bgp_asn = dev.get('bgp_info', {}).get('asn', 'N/A')
+                vlan_count = dev.get('total_vlans', 0)
+                f.write(f"    ├── {dev['device_name']:<25} VTEP: {vxlan_ip:<15} ASN: {bgp_asn}  VLANs: {vlan_count}\n")
+            f.write("\n")
+
+            f.write("  Border Leaf (Граница):\n")
+            for dev in border_devices:
+                vxlan_ip = dev.get('vxlan_info', {}).get('vtep_ip', 'N/A')
+                bgp_asn = dev.get('bgp_info', {}).get('asn', 'N/A')
+                vlan_count = dev.get('total_vlans', 0)
+                f.write(f"    ├── {dev['device_name']:<25} VTEP: {vxlan_ip:<15} ASN: {bgp_asn}  VLANs: {vlan_count}\n")
+            f.write("\n")
+
+            # === BGP ТОПОЛОГИЯ ===
+            f.write("┌" + "─" * 128 + "┐\n")
+            f.write("│" + " BGP ТОПОЛОГИЯ (EVPN) ".center(128) + "│\n")
+            f.write("└" + "─" * 128 + "┘\n\n")
+
+            # ASCII схема BGP
+            f.write("                          ASN 65100 (Spine)\n")
+            f.write("              ┌────────────┬────────────┬────────────┐\n")
+            for dev in spine_devices:
+                bgp_info = dev.get('bgp_info', {})
+                router_id = bgp_info.get('router_id', 'N/A')
+                f.write(f"          {dev['device_name']:<18} (RID: {router_id})\n")
+            f.write("              │            │            │\n")
+            f.write("     ─────────┴────────────┴────────────┴─────────\n")
+            f.write("     │              │                  │         │\n")
+            
+            for dev in leaf_devices:
+                bgp_info = dev.get('bgp_info', {})
+                asn = bgp_info.get('asn', 'N/A')
+                f.write(f"  ASN {asn:<5}         ASN {asn:<5}\n")
+                f.write(f"  {dev['device_name']:<18}\n")
+            
+            for dev in border_devices:
+                bgp_info = dev.get('bgp_info', {})
+                asn = bgp_info.get('asn', 'N/A')
+                f.write(f"          ASN {asn:<5}         ASN {asn:<5}\n")
+                f.write(f"          {dev['device_name']:<18}\n")
+            f.write("\n")
+
+            # Детали BGP сессий
+            f.write("  BGP Соседи:\n")
+            for dev in results:
+                bgp_info = dev.get('bgp_info', {})
+                if bgp_info.get('enabled'):
+                    f.write(f"\n    {dev['device_name']} (ASN {bgp_info.get('asn', 'N/A')}):\n")
+                    neighbors = bgp_info.get('neighbors', [])[:5]  # Первые 5 соседей
+                    for n in neighbors:
+                        evpn_status = "✓ EVPN" if n.get('evpn_enabled') else ""
+                        f.write(f"      ├── {n['ip']:<15} → AS {n['remote_as']:<6} {n.get('description', ''):<20} {evpn_status}\n")
+                    if len(bgp_info.get('neighbors', [])) > 5:
+                        f.write(f"      ... и ещё {len(bgp_info.get('neighbors', [])) - 5} соседей\n")
+            f.write("\n")
+
+            # === VXLAN ИНФОРМАЦИЯ ===
+            f.write("┌" + "─" * 128 + "┐\n")
+            f.write("│" + " VXLAN / EVPN КОНФИГУРАЦИЯ ".center(128) + "│\n")
+            f.write("└" + "─" * 128 + "┘\n\n")
+
+            f.write("  VTEP IP адреса:\n")
+            for dev in results:
+                vxlan_info = dev.get('vxlan_info', {})
+                if vxlan_info.get('enabled'):
+                    f.write(f"    ├── {dev['device_name']:<25} → {vxlan_info.get('vtep_ip', 'N/A')}\n")
+            f.write("\n")
+
+            anycast_mac = None
+            for dev in results:
+                vxlan_info = dev.get('vxlan_info', {})
+                if vxlan_info.get('anycast_mac'):
+                    anycast_mac = vxlan_info['anycast_mac']
+                    break
+            if anycast_mac:
+                f.write(f"  Anycast Gateway MAC: {anycast_mac}\n\n")
+
+            # VNI список (первое устройство с VNI)
+            for dev in results:
+                vxlan_info = dev.get('vxlan_info', {})
+                vnis = vxlan_info.get('vnis', [])
+                if vnis:
+                    f.write("  VNI (VXLAN Network Identifier):\n")
+                    f.write("    ┌" + "─" * 50 + "┬" + "─" * 15 + "┬" + "─" * 15 + "┐\n")
+                    f.write("    │ " + "VNI".center(50) + " │ " + "Bridge VLAN".center(15) + " │ " + "VNI Name".center(15) + " │\n")
+                    f.write("    ├" + "─" * 50 + "┼" + "─" * 15 + "┼" + "─" * 15 + "┤\n")
+                    for vni in vnis[:10]:  # Первые 10 VNI
+                        f.write(f"    │ {vni.get('vni', 'N/A'):<50} │ {vni.get('bridge_vlan', 'N/A'):<15} │ {vni.get('name', 'N/A'):<15} │\n")
+                    if len(vnis) > 10:
+                        f.write(f"    │ ... и ещё {len(vnis) - 10} VNI {' ' * 47}│\n")
+                    f.write("    └" + "─" * 50 + "┴" + "─" * 15 + "┴" + "─" * 15 + "┘\n")
+                    break
+            f.write("\n")
+
+            # MAC VRF (EVPN Route Targets) - пример с первого устройства
+            mac_vrf_sample_device = None
+            mac_vrf_sample_list = []
+            for dev in results:
+                vxlan_info = dev.get('vxlan_info', {})
+                mac_vrfs = vxlan_info.get('mac_vrfs', [])
+                if mac_vrfs:
+                    mac_vrf_sample_device = dev['device_name']
+                    mac_vrf_sample_list = mac_vrfs[:10]  # Берём первые 10 для примера
+                    break
+            
+            if mac_vrf_sample_list:
+                f.write(f"  MAC VRF (EVPN Route Targets) - пример с устройства {mac_vrf_sample_device}:\n")
+                f.write("    ┌" + "─" * 30 + "┬" + "─" * 20 + "┬" + "─" * 20 + "┬" + "─" * 20 + "┐\n")
+                f.write("    │ " + "VRF Name".center(30) + " │ " + "RD".center(20) + " │ " + "Route Target".center(20) + " │ " + "Description".center(20) + " │\n")
+                f.write("    ├" + "─" * 30 + "┼" + "─" * 20 + "┼" + "─" * 20 + "┼" + "─" * 20 + "┤\n")
+                for vrf in mac_vrf_sample_list:
+                    name = vrf.get('name', 'N/A')[:28]
+                    rd = vrf.get('rd', 'N/A')[:18]
+                    rt = vrf.get('route_target', 'N/A')[:18]
+                    desc = vrf.get('description', 'N/A')[:18]
+                    f.write(f"    │ {name:<30} │ {rd:<20} │ {rt:<20} │ {desc:<20} │\n")
+                total_mac_vrfs = sum(len(d.get('vxlan_info', {}).get('mac_vrfs', [])) for d in results)
+                if total_mac_vrfs > len(mac_vrf_sample_list):
+                    f.write(f"    │ ... и ещё {total_mac_vrfs - len(mac_vrf_sample_list)} MAC VRF\n")
+                f.write("    └" + "─" * 30 + "┴" + "─" * 20 + "┴" + "─" * 20 + "┴" + "─" * 20 + "┘\n")
+            f.write("\n")
+
+            # === PORT-CHANNEL (LACP) ===
+            f.write("┌" + "─" * 128 + "┐\n")
+            f.write("│" + " PORT-CHANNEL (LACP) ".center(128) + "│\n")
+            f.write("└" + "─" * 128 + "┘\n\n")
+
+            for dev in results:
+                port_channels = dev.get('port_channels', [])
+                if port_channels:
+                    f.write(f"  {dev['device_name']}:\n")
+                    for pc in port_channels:
+                        status = "▼ DOWN" if pc.get('shutdown') else "▲ UP"
+                        members = ", ".join([f"grp{m['group']}({m['mode']})" for m in pc.get('members', [])])
+                        f.write(f"    ├── {pc['name']:<10} {pc.get('description', ''):<35} VLANs: {pc.get('vlans', 'N/A'):<20} {status}\n")
+                        if members:
+                            f.write(f"    │            Members: {members}\n")
+            f.write("\n")
+
+            # === СЕТЬ УПРАВЛЕНИЯ ===
+            f.write("┌" + "─" * 128 + "┐\n")
+            f.write("│" + " СЕТЬ УПРАВЛЕНИЯ (Management OOB) ".center(128) + "│\n")
+            f.write("└" + "─" * 128 + "┘\n\n")
+
+            mgmt_network = None
+            for dev in results:
+                mgmt_info = dev.get('management_info', {})
+                if mgmt_info.get('mgmt_ip'):
+                    if not mgmt_network:
+                        mgmt_network = f"10.7.8.0/{mgmt_info.get('mgmt_mask', '24')}"
+                    f.write(f"    ├── {dev['device_name']:<25} → {mgmt_info.get('mgmt_interface', 'eth0')}: "
+                           f"{mgmt_info.get('mgmt_ip')}/{mgmt_info.get('mgmt_mask', '24')} "
+                           f"(GW: {mgmt_info.get('default_gateway', 'N/A')})\n")
+            if mgmt_network:
+                f.write(f"\n  Management Network: {mgmt_network}\n")
+            f.write("\n")
+
+            # === ASCII СХЕМА ТОПОЛОГИИ ===
+            f.write("┌" + "─" * 128 + "┐\n")
+            f.write("│" + " ФИЗИЧЕСКАЯ ТОПОЛОГИЯ (CLOS Architecture) ".center(128) + "│\n")
+            f.write("└" + "─" * 128 + "┘\n\n")
+
+            # Рисуем схему CLOS
+            f.write("                              ╔════════════════════════════════════════╗\n")
+            f.write("                              ║         SPINE LAYER (ASN 65100)        ║\n")
+            f.write("                              ╚════════════════════════════════════════╝\n")
+            f.write("                                       │        │        │\n")
+            
+            # Spine устройства
+            spine_names = [d['device_name'] for d in spine_devices]
+            f.write(f"                              {'  '.join([f'{s:<15}' for s in spine_names])}\n")
+            f.write(f"                              {'  '.join(['│' * len(spine_names)])}\n")
+            
+            # Листья
+            f.write("\n")
+            f.write("    ╔════════════════════════════════════════════════════════════════════════════╗\n")
+            f.write("    ║                    LEAF LAYER (Доступ/Граница)                             ║\n")
+            f.write("    ╚════════════════════════════════════════════════════════════════════════════╝\n")
+            
+            all_leaf = leaf_devices + border_devices
+            for dev in all_leaf:
+                bgp_info = dev.get('bgp_info', {})
+                vxlan_info = dev.get('vxlan_info', {})
+                f.write(f"\n      {dev['device_name']:<20} ASN:{bgp_info.get('asn', 'N/A'):<6} VTEP:{vxlan_info.get('vtep_ip', 'N/A'):<15}\n")
+                f.write(f"         │\\\n         ├─────────── подключено ко всем Spine (ECMP)\n         │/\n")
+            
+            f.write("\n")
+            f.write("  Условные обозначения:\n")
+            f.write("    ├── VTEP: VXLAN Tunnel End Point IP\n")
+            f.write("    ├── ASN:  BGP Autonomous System Number\n")
+            f.write("    ├── ECMP: Equal-Cost Multi-Path routing\n")
+            f.write("    └── EVPN: Ethernet VPN (BGP control plane)\n")
+            f.write("\n")
+
+            # Итоговая статистика
+            f.write("┌" + "─" * 128 + "┐\n")
+            f.write("│" + " ИТОГОВАЯ СТАТИСТИКА ".center(128) + "│\n")
+            f.write("└" + "─" * 128 + "┘\n\n")
+
+            total_devices = len(results)
+            total_spine = len(spine_devices)
+            total_leaf = len(leaf_devices)
+            total_border = len(border_devices)
+            total_vlans = sum(r.get('total_vlans', 0) for r in results)
+            total_vnis = sum(len(r.get('vxlan_info', {}).get('vnis', [])) for r in results)
+            total_port_channels = sum(len(r.get('port_channels', [])) for r in results)
+            total_bgp_sessions = sum(len(r.get('bgp_info', {}).get('neighbors', [])) for r in results)
+
+            f.write(f"    Общее количество устройств:     {total_devices}\n")
+            f.write(f"      ├── Spine:                    {total_spine}\n")
+            f.write(f"      ├── Leaf:                     {total_leaf}\n")
+            f.write(f"      └── Border Leaf:              {total_border}\n")
+            f.write(f"\n")
+            f.write(f"    VLAN (всего):                   {total_vlans}\n")
+            f.write(f"    VXLAN VNI (всего):              {total_vnis}\n")
+            f.write(f"    Port-Channel интерфейсов:       {total_port_channels}\n")
+            f.write(f"    BGP сессий (всего):             {total_bgp_sessions}\n")
+            f.write(f"\n")
+
+            # Физические связи из links_result
+            physical_links = links_result.get("physical_links", [])
+            if physical_links:
+                f.write(f"    Физических связей (P2P /31):    {len(physical_links)}\n")
+            
+            mgmt_networks = links_result.get("mgmt_networks", [])
+            if mgmt_networks:
+                f.write(f"    Управленческих интерфейсов:   {len(mgmt_networks)}\n")
+            
+            logical_links = links_result.get("logical_links", [])
+            if logical_links:
+                f.write(f"    Логических связей (Overlay):  {len(logical_links)}\n")
+            
+            f.write("\n" + "=" * 130 + "\n")
+            f.write(f" Дата генерации отчёта: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write("=" * 130 + "\n")
