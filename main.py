@@ -46,6 +46,7 @@ def main():
     # Генерация текстовой ASCII-диаграммы топологии
     ReportGenerator.draw_topology_ascii(devices, links_result, REPORT)
 
+    print(links_result)
 
     if links_result:
         print(f"⚠️  Создаю диаграмму\n")

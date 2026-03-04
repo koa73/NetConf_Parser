@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Any
 from N2G import  drawio_diagram
 import yaml
+from lib.seaf_converter import get_seaf_dictionary
 
 
 class NetworkVisualizer:
@@ -32,6 +33,7 @@ class NetworkVisualizer:
         self.pattern_dir = Path(pattern_dir).resolve()
         self.drawio_template =  drawio_template
         self.drawio_stencil_templates = Path(drawio_stencil_templates).resolve()
+        self.data_pattern = get_seaf_dictionary()
         
         # Валидация базового каталога при инициализации
         if not self.pattern_dir.exists() or not self.pattern_dir.is_dir():
@@ -86,8 +88,8 @@ class NetworkVisualizer:
 
         return result
 
-    @staticmethod
-    def generate_device_list(data: Dict[str, Any], patterns: Dict[str, Any]) -> Dict[str, Any]:
+
+    def generate_device_list(self, data: Dict[str, Any], patterns: Dict[str, Any]) -> Dict[str, Any]:
         """
         Процедура формирования списка устройств на основе link_result и merge_yaml_files
 
@@ -227,10 +229,12 @@ class NetworkVisualizer:
                             continue
                         break
 
+            device_list[device_name]['data'] = self.data_pattern['network_component']
+
         return device_list
 
-    @staticmethod
-    def generate_network_list(data: Dict[str, Any], patterns: Dict[str, Any]) -> Dict[str, Any]:
+
+    def generate_network_list(self, data: Dict[str, Any], patterns: Dict[str, Any]) -> Dict[str, Any]:
         """
         Процедура формирования перечня уникальных сетей на основе словарей
         и формирующей словарь где в качестве ключа используется ip_mask
@@ -317,6 +321,7 @@ class NetworkVisualizer:
             network_data['y'] = 0
             network_data['pattern'] = source_type
             network_data['label'] = network
+            network_data['data'] = self.data_pattern["network"]["LAN"]
             # Заменяем все символы, кроме цифр, на _
             clean_network_key = ''.join(c if c.isdigit() else '_' for c in network)
             network_list[clean_network_key] = network_data
@@ -1441,7 +1446,8 @@ class NetworkVisualizer:
                         width=obj_data.get('width', 100),
                         height=obj_data.get('height', 50),
                         style=obj_data.get('style', ''),
-                        label=obj_data.get('label', obj_id)
+                        label=obj_data.get('label', obj_id),
+                        data=obj_data.get('data', {})
                     )
                     added += 1
 
