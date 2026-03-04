@@ -233,7 +233,8 @@ class NetworkVisualizer:
                 self.data_pattern['network_component'],
                 device_name,
                 dev,
-                data
+                data,
+                device_type = device_list[device_name].get('type')
             )
 
         return device_list

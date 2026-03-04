@@ -2,14 +2,17 @@ switch:
   height: 30
   width: 90
   style: 'shape=mxgraph.cisco.switches.workgroup_switch;sketch=0;html=1;pointerEvents=1;dashed=0;fillColor=#036897;strokeColor=#ffffff;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;labelBackgroundColor=default;fontSize=12;fontColor=#FFFFFF;'
+  type: 'Коммутатор (свитч)'
 router:
   height: 50
   width: 80
   style: 'shape=mxgraph.cisco.routers.router;sketch=0;html=1;pointerEvents=1;dashed=0;fillColor=#036897;strokeColor=#ffffff;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;labelBackgroundColor=default;fontSize=12;fontColor=#FFFFFF;'
+  type: 'Маршрутизатор (роутер)'
 firewall:
   height: 70
   width: 30
   style: 'shape=mxgraph.cisco.security.firewall;html=1;pointerEvents=1;dashed=0;fillColor=#FF0000;strokeColor=#ffffff;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;flipH=1;legacyAnchorPoints=0;'
+  type: 'Межсетевой экран (файрвол)'
 default:
   height: 50
   width: 90

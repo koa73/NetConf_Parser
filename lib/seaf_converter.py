@@ -403,6 +403,7 @@ class DeviceDataMapper:
         device_name: str,
         devices: list[dict[str, Any]],
         links_result: dict[str, list[list[str]]],
+        device_type: str | None = None,
     ) -> dict[str, Any]:
         """
         Заполнить шаблон network_component данными устройства.
@@ -413,6 +414,8 @@ class DeviceDataMapper:
             devices: Список словарей устройств из device_analyzer
             links_result: Словарь с результатами анализа топологии
                          (physical_links, mgmt_networks, logical_links)
+            device_type: Тип устройства. Если не None, переопределяет значение type.
+                        Если None, используется значение из шаблона.
 
         Returns:
             Заполненный шаблон network_component
@@ -433,8 +436,9 @@ class DeviceDataMapper:
                 result["model"] = model
 
             # Извлекаем тип устройства
-            device_type = device_data.get("device_type", "")
-            if device_type and device_type != "unknown":
+            # Если device_type передан как параметр, используем его
+            # Иначе оставляем значение из шаблона без изменений
+            if device_type is not None:
                 result["type"] = device_type
 
             # Извлекаем название устройства
@@ -442,10 +446,12 @@ class DeviceDataMapper:
             if name and name != "unknown":
                 result["title"] = name
 
-            # Извлекаем описание из vendor и device_type
+            # Извлекаем описание
+            # Если device_type передан, используем его, иначе берём из данных устройства
             vendor = device_data.get("vendor", "")
             if vendor:
-                result["description"] = f"{vendor} {device_type}" if device_type else vendor
+                dtype_for_desc = device_type if device_type else device_data.get("device_type", "")
+                result["description"] = f"{vendor} {dtype_for_desc}" if dtype_for_desc else vendor
 
         # Извлекаем подключенные сети из links_result
         network_connections = DeviceDataMapper._extract_network_connections(
