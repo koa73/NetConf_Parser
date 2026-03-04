@@ -35,8 +35,8 @@ def main():
             devices.append(device.to_dict())
 
     # Анализ топологии
-    topology_analyzer = NetworkTopologyAnalyzer()
-    links_result = topology_analyzer.analyze_topology(devices)
+    t = NetworkTopologyAnalyzer()
+    links_result = t.analyze_topology(devices)
 
     # Генерация отчётов
     ReportGenerator.print_short_report(devices)
@@ -45,8 +45,6 @@ def main():
     
     # Генерация текстовой ASCII-диаграммы топологии
     ReportGenerator.draw_topology_ascii(devices, links_result, REPORT)
-
-    print(links_result)
 
     if links_result:
         print(f"⚠️  Создаю диаграмму\n")
@@ -79,7 +77,7 @@ def main():
 
         layout_algorithm = algorithm_map.get(choice, 'spine_leaf')  # По умолчанию Spine-Leaf
 
-        objects = viz.prepare_stencils(links_result, layout_algorithm=layout_algorithm)
+        objects = viz.prepare_stencils(links_result, devices, layout_algorithm=layout_algorithm)
 
         # Создаем диаграмму DraeIO
         viz.create_drawio_diagram(objects)

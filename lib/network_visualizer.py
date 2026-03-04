@@ -3,10 +3,10 @@
 """
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
 from N2G import  drawio_diagram
 import yaml
-from lib.seaf_converter import get_seaf_dictionary
+from lib.seaf_converter import get_seaf_dictionary, DeviceDataMapper
 
 
 class NetworkVisualizer:
@@ -89,7 +89,7 @@ class NetworkVisualizer:
         return result
 
 
-    def generate_device_list(self, data: Dict[str, Any], patterns: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_device_list(self, data: Dict[str, Any], dev : List[Dict[str, Any]], patterns: Dict[str, Any]) -> Dict[str, Any]:
         """
         Процедура формирования списка устройств на основе link_result и merge_yaml_files
 
@@ -229,7 +229,12 @@ class NetworkVisualizer:
                             continue
                         break
 
-            device_list[device_name]['data'] = self.data_pattern['network_component']
+            device_list[device_name]['data'] = DeviceDataMapper.fill_network_component(
+                self.data_pattern['network_component'],
+                device_name,
+                dev,
+                data
+            )
 
         return device_list
 
@@ -321,7 +326,8 @@ class NetworkVisualizer:
             network_data['y'] = 0
             network_data['pattern'] = source_type
             network_data['label'] = network
-            network_data['data'] = self.data_pattern["network"]["LAN"]
+            network_data['data'] = self.data_pattern["network"]["LAN"].copy()
+            network_data['data']['ipnetwork'] = network
             # Заменяем все символы, кроме цифр, на _
             clean_network_key = ''.join(c if c.isdigit() else '_' for c in network)
             network_list[clean_network_key] = network_data
@@ -471,13 +477,13 @@ class NetworkVisualizer:
 
         return links
 
-    def prepare_stencils(self, data : Dict[str, Any], layout_algorithm: str = 'circular'):
+    def prepare_stencils(self, data : Dict[str, Any],  dev : List[Dict[str, Any]], layout_algorithm: str = 'circular'):
 
         # 1. Формируем словари шаблонов
         patterns = self.merge_yaml_files()
 
         # 2. Формируем перечень устройств для размещения на диаграмме
-        devices = self.generate_device_list(data=data, patterns=patterns)
+        devices = self.generate_device_list(data=data, dev=dev, patterns=patterns)
 
         # 3. Формируем перечень сетей для размещения на диаграмме
         networks = self.generate_network_list(data=data, patterns=patterns)

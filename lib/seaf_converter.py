@@ -41,7 +41,8 @@ class SchemaLoader:
         for entity_name, entity_data in entities.items():
             self._entities[entity_name] = entity_data
 
-    def _load_yaml_file(self, file_path: Path) -> dict[str, Any] | None:
+    @staticmethod
+    def _load_yaml_file(file_path: Path) -> dict[str, Any] | None:
         """Загрузить отдельный YAML файл."""
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -386,6 +387,115 @@ class SchemaDictionaryBuilder:
             return enum_values if enum_values else None
 
         return ""
+
+
+class DeviceDataMapper:
+    """
+    Маппер данных устройств для заполнения SEAF шаблонов.
+
+    Предоставляет методы для заполнения шаблонов данными из устройств
+    и результатов анализа топологии.
+    """
+
+    @staticmethod
+    def fill_network_component(
+        template: dict[str, Any],
+        device_name: str,
+        devices: list[dict[str, Any]],
+        links_result: dict[str, list[list[str]]],
+    ) -> dict[str, Any]:
+        """
+        Заполнить шаблон network_component данными устройства.
+
+        Args:
+            template: Шаблон network_component из get_seaf_dictionary()
+            device_name: Имя устройства для поиска в devices
+            devices: Список словарей устройств из device_analyzer
+            links_result: Словарь с результатами анализа топологии
+                         (physical_links, mgmt_networks, logical_links)
+
+        Returns:
+            Заполненный шаблон network_component
+        """
+        result = template.copy()
+
+        # Находим устройство в списке devices
+        device_data = None
+        for device in devices:
+            if device.get("device_name") == device_name or device.get("filename") == device_name:
+                device_data = device
+                break
+
+        if device_data:
+            # Извлекаем модель устройства
+            model = device_data.get("model", "")
+            if model and model != "unknown":
+                result["model"] = model
+
+            # Извлекаем тип устройства
+            device_type = device_data.get("device_type", "")
+            if device_type and device_type != "unknown":
+                result["type"] = device_type
+
+            # Извлекаем название устройства
+            name = device_data.get("device_name", "")
+            if name and name != "unknown":
+                result["title"] = name
+
+            # Извлекаем описание из vendor и device_type
+            vendor = device_data.get("vendor", "")
+            if vendor:
+                result["description"] = f"{vendor} {device_type}" if device_type else vendor
+
+        # Извлекаем подключенные сети из links_result
+        network_connections = DeviceDataMapper._extract_network_connections(
+            device_name, links_result
+        )
+        if network_connections:
+            result["network_connection"] = network_connections
+
+        return result
+
+    @staticmethod
+    def _extract_network_connections(
+        device_name: str,
+        links_result: dict[str, list[list[str]]],
+    ) -> list[str]:
+        """
+        Извлечь список подключенных сетей для устройства.
+
+        Args:
+            device_name: Имя устройства
+            links_result: Словарь с результатами анализа топологии
+
+        Returns:
+            Список имён сетей (physical и mgmt) с заменой нецифровых символов на _
+        """
+        import re
+
+        networks = set()
+
+        # Обработка physical_links
+        # Структура: [dev1, vendor1, type1, intf1, ip1, dev2, vendor2, type2, intf2, ip2, network]
+        for link in links_result.get("physical_links", []):
+            if len(link) >= 11:
+                dev1, dev2, network = link[0], link[5], link[10]
+                if dev1 == device_name or dev2 == device_name:
+                    # Заменяем все символы, кроме цифр, на _
+                    normalized = re.sub(r"[^\d]", "_", network)
+                    networks.add(normalized)
+
+        # Обработка mgmt_networks
+        # Структура: [device, vendor, dev_type, intf, ip, network]
+        for entry in links_result.get("mgmt_networks", []):
+            if len(entry) >= 6:
+                dev, network = entry[0], entry[5]
+                if dev == device_name:
+                    # Заменяем все символы, кроме цифр, на _
+                    normalized = re.sub(r"[^\d]", "_", network)
+                    networks.add(normalized)
+
+        return sorted(list(networks))
 
 
 class SeafConverter:
