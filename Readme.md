@@ -1,23 +1,17 @@
-# NetConf Parser
+# NetConf Parser & SEAF Converter
 
-Система анализа конфигураций сетевого оборудования для автоматического построения топологий сети.
+Система анализа конфигураций сетевого оборудования для автоматического построения топологий сети и конвертации в формат SEAF (System Enterprise Architecture Framework).
 
 ## 📌 Описание
 
-Этот проект позволяет автоматически анализировать конфигурационные файлы сетевого оборудования разных производителей и извлекать из них структурированную информацию:
+Этот проект позволяет автоматически анализировать конфигурационные файлы сетевого оборудования разных производителей, извлекать структурированную информацию, строить сетевые топологии и конвертировать данные в формат SEAF для использования в системах архитектурного моделирования.
 
-- Производитель оборудования
-- Имя устройства
-- Модель устройства
-- Тип устройства (коммутатор, маршрутизатор, файрвол и т.д.)
-- Количество и перечень VLAN
-- Список маршрутизируемых сетей
+## 🚀 Основные возможности
 
-Полученные данные можно использовать для автоматического построения сетевых диаграмм и топологий.
-
-## 🚀 Особенности
-
-- 💡 Поддержка оборудования от 9 производителей:
+### Анализ сетевого оборудования
+- **Автоматическое определение вендора** по сигнатурам конфигурации
+- **Извлечение данных устройства**: имя, модель, тип, VLAN, маршрутизируемые сети
+- **Поддержка 9+ производителей**:
   - Cisco (IOS, NX-OS, ASA)
   - Juniper (Junos)
   - Huawei (Enterprise, Carrier)
@@ -29,145 +23,396 @@
   - Aruba/HPE
   - Dell Networking
 
-- 📦 Модульная архитектура - добавление новых производителей не требует изменения кода
-- 🔄 Улучшенный алгоритм определения вендоров с приоритетом сигнатур над общими паттернами
-- 🚨 Механизм обнаружения потенциальных ложных срабатываний при отсутствии шаблонов
-- 🌐 Универсальная поддержка форматов конфигураций (hierarchical, set-based)
-- 📊 Компактный вывод в консоль и детальная информация в файле
-- 🔍 Эвристический анализ для случаев, когда модель не указана явно
-- 🖇️ Автоматическое построение топологии сети (физические, управленческие и логические связи)
-- 🎨 Визуализация сетевой топологии с помощью шаблонов draw.io
-- 📋 Генерация объектов для визуализации устройств, сетей и связей
-- 🔄 Улучшенный алгоритм силовой направленности для размещения объектов на диаграмме
-- 📉 Уменьшенный разброс объектов на диаграмме для лучшей читаемости
-- 🔄 Усиленное притяжение между связанными устройствами и сетями
-- 🔄 Увеличенное отталкивание между устройствами и сетями для лучшего разделения
-- 🔗 Добавление связей на диаграмму с использованием метода add_link
-- 🏷️ Процедура set_parent для управления иерархией элементов диаграммы
+### Анализ топологии
+- **Физические связи** (Physical P2P Links) — обнаружение соединений между устройствами
+- **Управленческие сети** (Management Networks) — интерфейсы управления
+- **Логические связи** (Logical Links) — VXLAN overlay, сервисные сети
+
+### Визуализация
+- **Генерация диаграмм draw.io** с использованием шаблонов
+- **5 алгоритмов размещения**:
+  - Круговой (circular)
+  - Сеточный (grid)
+  - Силовой (force-directed)
+  - Кластерный (clustered)
+  - Spine-Leaf (оптимально для CLOS-архитектур)
+
+### SEAF Converter
+- **Парсинг YAML-схем** из каталога `patterns/seaf/`
+- **Поддержка наследования** через `allOf` (базовые сущности)
+- **Поддержка вариантов** через `oneOf` (LAN/WAN)
+- **Генерация шаблонов** для заполнения данными
+- **Конвертация DRAWIO → YAML** для экспорта в SEAF
 
 ## 📂 Структура проекта
+
 ```
-project/
-├── main.py
+NetConf_Parser/
+├── main.py                     # Точка входа
+├── requirements.txt            # Зависимости
+├── Readme.md                   # Документация
+├── network_diagram.drawio      # Исходная диаграмма
+├── network_details.txt         # Детальный отчёт
+├── seaf.yaml                   # Экспортированные данные SEAF
+│
 ├── lib/
-│   └── network_visualizer.py
-├── README.md
-├── requirements.txt
-└── data/
-    ├── device configs...
-└── patterns/
-    ├── drawio/
-    │   ├── base.drawio
-    │   └── templates/
-    │       ├── index.yaml
-    │       └── stencils.yaml
-    ├── cisco.json
-    ├── juniper.json
-    ├── huawei.json
-    ├── mikrotik.json
-    ├── f5.json
-    ├── arista.json
-    ├── paloalto.json
-    ├── fortinet.json
-    ├── aruba.json
-    └── dell.json
-└── presentation/
-    └── drawio patterns...
+│   ├── device_analyzer.py      # Анализ устройств и топологии
+│   ├── network_visualizer.py   # Визуализация в draw.io
+│   └── seaf_converter.py       # Конвертер SEAF схем
+│
+├── patterns/
+│   ├── devices/                # Шаблоны вендоров (JSON)
+│   │   ├── cisco.json
+│   │   ├── juniper.json
+│   │   ├── huawei.json
+│   │   └── ...
+│   ├── drawio/                 # Шаблоны draw.io
+│   │   ├── base.drawio
+│   │   └── templates/
+│   │       ├── index.yaml
+│   │       └── stencils.yaml
+│   └── seaf/                   # YAML-схемы SEAF
+│       ├── base_entity.yaml    # Базовые сущности
+│       ├── network.yaml        # Сети (LAN/WAN)
+│       ├── device.yaml         # Сетевые устройства
+│       └── logical_link.yaml   # Логические связи
+│
+├── data/                       # Конфигурационные файлы
+│   └── *.cfg
+│
+└── tests/
+    ├── test_seaf_converter.py  # Тесты SEAF конвертера
+    └── ...                     # Другие тесты
 ```
 
 ## 🛠 Требования
 
-- Python 3.8+
-- PyYAML (для обработки YAML-шаблонов)
-- N2G (для работы с draw.io диаграммами)
-- Стандартные библиотеки (os, re, json, typing, collections, ipaddress)
+- Python 3.10+
+- PyYAML (обработка YAML)
+- N2G (работа с draw.io)
+- pytest (тестирование)
 
-## ⚙️ Установка и запуск
+## ⚙️ Установка
 
-1. Клонируйте репозиторий:
-   ```bash
-   git clone https://github.com/yourusername/netconf-parser.git
-   cd netconf-parser
+```bash
+# Клонирование репозитория
+git clone https://github.com/yourusername/netconf-parser.git
+cd netconf-parser
 
-2. Установите зависимости:
-    ```bash
-    pip install -r requirements.txt
+# Создание виртуальной среды
+python3 -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+# .venv\Scripts\activate   # Windows
 
-3. Создать виртуальную среду (опционально):
-    ```bash
-    python3 -m venv .venv
-    source .venv/bin/activate  # для Linux/Mac
-    # или .venv\Scripts\activate для Windows
-
-4. Поместите конфигурационные файлы в папку data/
-    ```bash
-    mkdir data
-    cp /path/to/your/configs/*.cfg data/
-
-5. Запустите анализ:
-    ```bash
-    python3 main.py
-
-📝 Пример вывода:
-```
-✅ Загружен шаблон: juniper.json (версия 1.1)
-✅ Загружен шаблон: huawei.json (версия 1.2)
-✅ Загружен шаблон: cisco.json (версия 1.1)
-
-===========================================================================================================================
-Файл                                Вендор   Имя                 Модель                          Тип             VLAN  Сети
----------------------------------------------------------------------------------------------------------------------------
-spb-ldc-spine-sw-01.txt             Huawei   spb-ldc-spine-sw-01 FM8850-64CQ-EI                   carrier_switch  0     105
-spb-cdc-spine-sw-01.txt             Huawei   spb-cdc-spine-sw-01 CE Series (Data Center Switch)   carrier_switch  0     11
-spb-ldc-leaf-sw-01.txt              Huawei   spb-ldc-leaf-sw-01  CE6881-48S6CQ                    carrier_switch  21    17
-spb-cdc-leaf-sw-01.txt              Huawei   spb-cdc-leaf-sw-01  CE Series (Data Center Switch)   carrier_switch  5     14
-===========================================================================================================================
-
-✅ Детальная информация сохранена в файл: network_details.txt
+# Установка зависимостей
+pip install -r requirements.txt
 ```
 
-## 🧩 Как добавить поддержку нового производителя
-Создайте новый JSON-файл в папке patterns/ (например, newvendor.json)
-Определите структуру шаблона:
+## 🚀 Быстрый старт
+
+### 1. Анализ конфигураций
+
+Поместите конфигурационные файлы в папку `data/`:
+
+```bash
+mkdir data
+cp /path/to/configs/*.cfg data/
+```
+
+Запустите анализ:
+
+```bash
+python3 main.py
+```
+
+### 2. Интерактивный режим
+
+После анализа программа предложит:
+- Выбрать алгоритм размещения для диаграммы
+- Конвертировать данные из DRAWIO в YAML формат SEAF
+
+```
+Выберите алгоритм размещения объектов на диаграмме:
+1. Круговой алгоритм
+2. Сеточный алгоритм
+3. Силовой алгоритм
+4. Кластерный алгоритм
+5. Spine-Leaf-Border Leaf (оптимально для CLOS архитектуры)
+
+Произвести конвертацию данных из drawio файла? (Y/N): Y
+```
+
+## 📊 Примеры использования
+
+### SEAF Converter: Получение словаря схем
+
+```python
+from lib.seaf_converter import get_seaf_dictionary
+
+# Получить все схемы
+schemas = get_seaf_dictionary()
+
+# Структура:
+# {
+#   "network": {
+#     "WAN": {...},
+#     "LAN": {...}
+#   },
+#   "network_component": {...},
+#   "logical_link": {...}
+# }
+```
+
+### SEAF Converter: Заполнение шаблона данными устройства
+
+```python
+from lib.seaf_converter import get_seaf_dictionary, DeviceDataMapper
+
+# Получить шаблон
+schemas = get_seaf_dictionary()
+template = schemas["network_component"]
+
+# Данные устройства
+devices = [
+    {
+        "device_name": "sw-core-01",
+        "vendor": "Cisco",
+        "model": "Nexus 9000",
+        "device_type": "Маршрутизатор (роутер)",
+    }
+]
+
+# Результаты анализа топологии
+links_result = {
+    "physical_links": [...],
+    "mgmt_networks": [...],
+    "logical_links": []
+}
+
+# Заполнить шаблон
+filled = DeviceDataMapper.fill_network_component(
+    template, "sw-core-01", devices, links_result,
+    device_type="Межсетевой экран (файрвол)"  # опционально
+)
+```
+
+### DrawioConverter: Конвертация DRAWIO → YAML
+
+```python
+from lib.seaf_converter import DrawioConverter
+
+# Создать конвертер
+converter = DrawioConverter()
+
+# Конвертировать файл
+converter.convert_drawio_to_yaml(
+    "network_diagram.drawio",
+    "seaf.yaml"
+)
+
+# Результат:
+# seaf.company.ta.components.networks:
+#   spb-ldc-leaf-sw-01:
+#     model: CE6881-48S6CQ
+#     type: Коммутатор (свитч)
+#     OID: spb-ldc-leaf-sw-01
+#     schema: seaf.company.ta.components.networks
+```
+
+### DrawioConverter: Извлечение объектов
+
+```python
+from lib.seaf_converter import DrawioConverter
+
+converter = DrawioConverter()
+objects = converter.extract_objects_from_drawio("network_diagram.drawio")
+
+# objects = {
+#   "seaf.company.ta.components.networks": {
+#     "spb-ldc-leaf-sw-01": {...},
+#     ...
+#   },
+#   "seaf.company.ta.services.networks": {
+#     "192_168_201_0_31": {...},
+#     ...
+#   }
+# }
+```
+
+## 🧩 Архитектура SEAF схем
+
+### Базовая сущность (`base_entity.yaml`)
+
+Определяет общие поля для всех сервисов:
+
+```yaml
+seaf.company.ta.services.base.entity:
+  properties:
+    title: string
+    description: string
+    app_components: array
+    stand: array
+    external_id: string
+```
+
+### Сети (`network.yaml`)
+
+Поддерживает варианты LAN и WAN:
+
+```yaml
+patternProperties:
+  "^([a-zA-Z0-9_-]+)(\\.[a-zA-Z0-9_-]+)+$":
+    allOf:
+      - $ref: "#/$defs/seaf.company.ta.services.base.entity"
+    oneOf:
+      - $ref: "#/$defs/seaf.company.ta.services.networks/wan"
+      - $ref: "#/$defs/seaf.company.ta.services.networks/lan"
+```
+
+**Результат:**
+```json
+{
+  "network": {
+    "WAN": {
+      "title": "",
+      "type": "WAN",
+      "wan_ip": "",
+      "provider": "",
+      ...
+    },
+    "LAN": {
+      "title": "",
+      "type": "LAN",
+      "lan_type": ["Проводная", "Беспроводная"],
+      "vlan": 0,
+      ...
+    }
+  }
+}
+```
+
+### Устройства (`device.yaml`)
+
+Прямое определение свойств:
+
+```yaml
+patternProperties:
+  "^([a-zA-Z0-9_-]+)(\\.[a-zA-Z0-9_-]+)+$":
+    allOf:
+      - $ref: "#/$defs/seaf.company.ta.services.base.entity"
+      - $ref: "#/$defs/network_component_dzo"
+    properties:
+      type: {enum: [...]}
+      model: {type: string}
+      ...
+```
+
+## 🧪 Тестирование
+
+```bash
+# Запуск всех тестов
+pytest tests/ -v
+
+# Запуск тестов SEAF конвертера
+pytest tests/test_seaf_converter.py -v
+```
+
+**Статистика тестов:**
+- 59 тестов
+- Покрытие: SchemaLoader, SchemaResolver, SchemaDictionaryBuilder, SeafConverter, DeviceDataMapper, DrawioConverter
+
+## 📝 Форматы данных
+
+### Структура links_result
+
+```python
+{
+    "physical_links": [
+        [dev1, vendor1, type1, intf1, ip1, dev2, vendor2, type2, intf2, ip2, network]
+    ],
+    "mgmt_networks": [
+        [device, vendor, dev_type, intf, ip, network]
+    ],
+    "logical_links": [
+        [dev1, vendor1, type1, intf_ip1, dev2, vendor2, type2, intf_ip2, desc]
+    ]
+}
+```
+
+### Структура seaf.yaml
+
+```yaml
+seaf.company.ta.components.networks:
+  <OID или ID устройства>:
+    title: string
+    description: string
+    type: string | [enum values]
+    model: string
+    network_connection: [normalized networks]
+    OID: string
+    schema: seaf.company.ta.components.networks
+
+seaf.company.ta.services.networks:
+  <OID или ID сети>:
+    title: string
+    type: LAN | WAN
+    ipnetwork: string  # для LAN
+    wan_ip: string     # для WAN
+    OID: string
+    schema: seaf.company.ta.services.networks
+```
+
+## 🔧 Расширение функциональности
+
+### Добавление нового вендора
+
+Создайте JSON-файл в `patterns/devices/`:
+
 ```json
 {
   "vendor": "NewVendor",
   "version": "1.0",
-  "vendor_signatures": ["уникальные_сигнатуры_вендора"],
-  "detect_patterns": ["общие_паттерны"],
-  "name_patterns": [{"pattern": "паттерн_имени", "group": 1}],
-  "model_patterns": [{"pattern": "паттерн_модели", "group": 1}],
+  "vendor_signatures": ["уникальные сигнатуры"],
+  "detect_patterns": ["общие паттерны"],
+  "name_patterns": [{"pattern": "...", "group": 1}],
+  "model_patterns": [{"pattern": "...", "group": 1}],
   "type_inference": [
-    {"any": ["ключевые_слова"], "type": "тип_устройства", "score": 100}
+    {"any": ["ключевые слова"], "type": "router", "score": 100}
   ],
-  "default_device_type": "router_or_switch",
-  "network_extraction_rules": {
-    "interfaces": {
-      "start": "паттерн_начала_интерфейса",
-      "ip_pattern": "паттерн_IP",
-      "disable_pattern": "паттерн_отключения"
-    },
-    "vlans": {
-      "all_pattern": "паттерн_всех_VLAN",
-      "active_pattern": "паттерн_активных_VLAN"
-    }
-  }
+  "network_extraction_rules": {...}
 }
+```
 
-## 📊 Визуализация топологии
+### Добавление новой SEAF-сущности
 
-Проект включает в себя мощный инструмент визуализации сетевой топологии:
+Создайте YAML-файл в `patterns/seaf/`:
 
-- **Алгоритмы размещения**: круговой, сеточный, силовой направленности, кластерный
-- **Улучшенный силовой алгоритм**: с учетом типов объектов (устройства и сети) и их взаимосвязей
-- **Добавление связей**: автоматическое создание соединений между устройствами и сетями
-- **Управление иерархией**: возможность задания родительских элементов для объектов диаграммы
+```yaml
+entities:
+  seaf.company.ta.new_entity:
+    title: Новая сущность
+    objects:
+      new_object:
+        route: "/"
+        title: Новый объект
+    schema:
+      $defs: {...}
+      patternProperties: {...}
+```
 
-## 🛠️ Расширение функциональности
+## 📋 Выходные файлы
 
-Проект легко расширяется и позволяет:
+| Файл | Описание |
+|------|----------|
+| `network_details.txt` | Детальный отчёт об анализе |
+| `network_diagram.drawio` | Диаграмма топологии |
+| `seaf.yaml` | Экспортированные данные SEAF |
 
-- Добавлять новые алгоритмы размещения объектов
-- Настроить параметры существующих алгоритмов (коэффициенты отталкивания/притяжения)
-- Изменять стили отображения элементов диаграммы
-- Управлять иерархией элементов с помощью процедуры set_parent
+## 📞 Контакты
+
+- **GitHub**: https://github.com/yourusername/netconf-parser
+- **Issues**: https://github.com/yourusername/netconf-parser/issues
+
+## 📄 Лицензия
+
+MIT License
