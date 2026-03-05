@@ -329,6 +329,16 @@ class NetworkVisualizer:
             network_data['label'] = network
             network_data['data'] = self.data_pattern["network"]["LAN"].copy()
             network_data['data']['ipnetwork'] = network
+            # Устанавливаем уровень размещения (parent) на основе типа сети
+            # source_type=1: physical_links -> parent=1 (верхний уровень)
+            # source_type=2: mgmt_networks или mixed -> parent=2 (средний уровень)
+            # source_type=3: только logical_links -> parent=3 (нижний уровень)
+            if source_type == 1:
+                network_data['parent'] = 1
+            elif source_type == 3:
+                network_data['parent'] = 3
+            else:
+                network_data['parent'] = 2
             # Заменяем все символы, кроме цифр, на _
             clean_network_key = ''.join(c if c.isdigit() else '_' for c in network)
             network_list[clean_network_key] = network_data
@@ -516,29 +526,31 @@ class NetworkVisualizer:
     def layout_algorithm_spine_leaf(objects: dict, padding: int = 80, layer_padding: int = 300) -> dict:
         """
         Алгоритм размещения для архитектуры Spine-Leaf-Border Leaf
-        
+
         Создаёт иерархическое дерево:
         - Корень (верхний уровень): Spine устройства
         - Второй уровень: Leaf и Border Leaf устройства
-        
+        - Сети размещаются между уровнями с смещением по оси X
+
         Args:
             objects (dict): Словарь с объектами {'devices': devices, 'networks': networks, 'links': links}
             padding (int): Горизонтальный отступ между устройствами
             layer_padding (int): Вертикальный отступ между уровнями
-            
+
         Returns:
             dict: Модифицированный словарь с проставленными координатами
         """
         devices = objects['devices']
-        
+        networks = objects.get('networks', {})
+
         # Классификация устройств по ролям
         spine_devices = {}
         leaf_devices = {}
         border_devices = {}
-        
+
         for dev_id, dev_data in devices.items():
             dev_name = dev_data.get('name', '').lower()
-            
+
             if 'spn' in dev_name or 'spine' in dev_name:
                 spine_devices[dev_id] = dev_data
             elif 'brl' in dev_name or 'border' in dev_name:
@@ -547,7 +559,7 @@ class NetworkVisualizer:
                 leaf_devices[dev_id] = dev_data
             else:
                 leaf_devices[dev_id] = dev_data
-        
+
         # Определяем размеры устройств
         def get_device_size(device_dict):
             if not device_dict:
@@ -555,13 +567,15 @@ class NetworkVisualizer:
             widths = [d.get('width', 90) for d in device_dict.values()]
             heights = [d.get('height', 30) for d in device_dict.values()]
             return max(widths), max(heights)
-        
+
         spine_w, spine_h = get_device_size(spine_devices)
         leaf_w, leaf_h = get_device_size(leaf_devices)
         border_w, border_h = get_device_size(border_devices)
-        
+
         max_width = max(spine_w, leaf_w, border_w, 120)  # Минимальная ширина 120
-        
+        network_width = 200  # Стандартная ширина сети
+        network_offset_x = max_width + padding  # Смещение сетей по X
+
         # === УРОВЕНЬ 1: Spine (верхний) ===
         spine_y = -layer_padding / 2
         if spine_devices:
@@ -570,35 +584,92 @@ class NetworkVisualizer:
             # Центрируем Spine устройства
             spine_total_width = n_spine * max_width + (n_spine - 1) * padding
             spine_start_x = -spine_total_width / 2 + max_width / 2
-            
+
             for idx, (dev_id, dev_data) in enumerate(sorted_spine):
                 dh = dev_data.get('height', 30)
                 dev_data['x'] = spine_start_x + idx * (max_width + padding)
                 dev_data['y'] = spine_y - dh / 2
-        
+
         # === УРОВЕНЬ 2: Leaf и Border Leaf (нижний) ===
         leaf_y = layer_padding / 2
-        
+
         # Объединяем Leaf и Border Leaf для совместного размещения
         all_lower = {**leaf_devices, **border_devices}
-        
+
         if all_lower:
             sorted_lower = sorted(all_lower.items(), key=lambda x: x[1].get('name', ''))
             n_lower = len(sorted_lower)
             # Центрируем все устройства нижнего уровня
             lower_total_width = n_lower * max_width + (n_lower - 1) * padding
             lower_start_x = -lower_total_width / 2 + max_width / 2
-            
+
             for idx, (dev_id, dev_data) in enumerate(sorted_lower):
                 dh = dev_data.get('height', 30)
                 dev_data['x'] = lower_start_x + idx * (max_width + padding)
                 dev_data['y'] = leaf_y + dh / 2
-        
+
         objects['devices'] = devices
-        
+
+        # === РАЗМЕЩЕНИЕ СЕТЕЙ ===
+        # Сети размещаются на 3 уровнях между уровнями устройств
+        # parent=1: верхний уровень сетей (y = -50)
+        # parent=2: средний уровень сетей (y = 0)
+        # parent=3: нижний уровень сетей (y = 50)
+        network_base_y = 0  # Базовая позиция по Y
+        network_level_offset = 50  # Отступ между уровнями по Y
+        network_min_padding = 20  # Минимальный отступ между сетями по X
+
+        # Фильтруем только реальные сети (исключаем метки)
+        real_networks = {
+            k: v for k, v in networks.items()
+            if not k.endswith('_label') and k not in ('spine_label', 'leaf_label')
+        }
+
+        # Группируем сети по уровням (parent)
+        network_levels = {1: [], 2: [], 3: []}
+        for net_id, net_data in real_networks.items():
+            parent = net_data.get('parent', 2)  # По умолчанию средний уровень
+            if parent not in network_levels:
+                parent = 2
+            network_levels[parent].append((net_id, net_data))
+
+        # Размещаем сети на каждом уровне
+        for level, level_networks in network_levels.items():
+            if not level_networks:
+                continue
+
+            # Вычисляем Y для этого уровня
+            level_y = network_base_y + (level - 2) * network_level_offset
+
+            # Сортируем сети для последовательного размещения
+            sorted_level_networks = sorted(level_networks, key=lambda x: x[1].get('label', ''))
+            n_networks = len(sorted_level_networks)
+
+            # Вычисляем ширину каждой сети с учётом отступов
+            network_offsets = []
+            for net_id, net_data in sorted_level_networks:
+                w = net_data.get('width', network_width)
+                network_offsets.append(w + network_min_padding)
+
+            # Общая ширина всех сетей на уровне
+            level_total_width = sum(network_offsets) - network_min_padding  # Последний отступ не нужен
+            start_x = -level_total_width / 2
+
+            # Размещаем сети
+            current_x = start_x
+            for net_id, net_data in sorted_level_networks:
+                w = net_data.get('width', network_width)
+                h = net_data.get('height', 20)
+                net_data['x'] = current_x + w / 2  # Центрируем относительно точки привязки
+                net_data['y'] = level_y
+                net_data['width'] = w
+                net_data['height'] = h
+                # Смещаем для следующей сети
+                current_x += w + network_min_padding
+
+        objects['networks'] = networks
+
         # Добавляем метки уровней
-        networks = objects.get('networks', {})
-        
         if spine_devices:
             networks['spine_label'] = {
                 'id': 'spine_label',
@@ -611,7 +682,7 @@ class NetworkVisualizer:
                 'y': spine_y - 100,
                 'style': 'text'
             }
-        
+
         if all_lower:
             networks['leaf_label'] = {
                 'id': 'leaf_label',
@@ -624,9 +695,9 @@ class NetworkVisualizer:
                 'y': leaf_y + 100,
                 'style': 'text'
             }
-        
+
         objects['networks'] = networks
-        
+
         return objects
 
     @staticmethod
