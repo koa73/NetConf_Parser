@@ -369,7 +369,8 @@ class SchemaDictionaryBuilder:
 
         return template
 
-    def _get_default_value(self, prop_def: dict[str, Any]) -> Any:
+    @staticmethod
+    def _get_default_value(prop_def: dict[str, Any]) -> Any:
         """Определить значение по умолчанию для свойства."""
         prop_type = prop_def.get("type", "string")
 

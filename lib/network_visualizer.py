@@ -333,11 +333,9 @@ class NetworkVisualizer:
             clean_network_key = ''.join(c if c.isdigit() else '_' for c in network)
             network_list[clean_network_key] = network_data
 
-        print(network_list.get('logical_links'))
         return network_list
 
-    @staticmethod
-    def generate_links(data: Dict[str, Any], patterns: Dict[str, Any]) -> list:
+    def generate_links(self, data: Dict[str, Any], patterns: Dict[str, Any]) -> list:
         """
         Процедура формирования массива словарей, представляющих соединения между устройствами и сетями
 
@@ -444,11 +442,10 @@ class NetworkVisualizer:
                     device2 = link[4]  # device2
                     interface2 = link[7]  # interface2
                     link_type = link[8]  # link_type (может содержать информацию о сети)
-                    
+
                     # Извлекаем информацию о сети из link_type, если возможно
                     network = link_type
                     ip1 = ""  # В logical_links IP может не быть в явном виде
-                    ip2 = ""
                     
                     if ':' in link_type:
                         parts = link_type.split(':', 1)
@@ -460,7 +457,7 @@ class NetworkVisualizer:
                     style = style_data.get('style', '')
                     
                     # Заменяем все символы, кроме цифр, на _ в target
-                    clean_network = ''.join(c if c.isdigit() else '_' for c in network)
+                    #clean_network = ''.join(c if c.isdigit() else '_' for c in network)
                     
                     # Создаем два соединения: от device1 к network и от device2 к network
                     # Соединение от device1 к network
@@ -469,13 +466,12 @@ class NetworkVisualizer:
                         'target': device2,
                         'style': style,
                         'label': ip1,
-                        'data': None,
+                        'data': self.data_pattern['logical_link'],
                         'src_label': interface1,
                         'trgt_label': interface2,
                         'pattern': 3
                     }
                     links.append(link_dict1)
-
         return links
 
     def prepare_stencils(self, data : Dict[str, Any],  dev : List[Dict[str, Any]], layout_algorithm: str = 'circular'):
@@ -1480,6 +1476,7 @@ class NetworkVisualizer:
                 style = link.get('style', '')
                 label = link.get('label', '')
                 src_label = link.get('src_label', '')
+                data = (link.get('data') or {}) | {'parent': link.get('parent', 3)}
 
                 # Меняем в шаблоне шаблоне parent_id
                 diagram.drawio_link_object_xml = self.set_parent(diagram.drawio_link_object_xml, link.get('pattern', 1))
@@ -1490,7 +1487,7 @@ class NetworkVisualizer:
                     target=target,
                     style=style,
                     src_label=src_label,
-                    data={'parent': link.get('parent', 3)}
+                    data=data
                 )
                 added_links += 1
 
