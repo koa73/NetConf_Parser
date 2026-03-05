@@ -5,7 +5,7 @@ import re
 import json
 import sys
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Set, Optional, Union
+from typing import List, Dict, Any, Tuple, Set, Union
 import ipaddress
 from collections import Counter
 

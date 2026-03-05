@@ -238,12 +238,33 @@ class SchemaDictionaryBuilder:
                     variants = self._extract_variants(pattern_def)
                     if variants:
                         # Если есть варианты (LAN/WAN), добавляем их
-                        result[object_name] = variants
+                        result[object_name] = self._add_system_fields(
+                            variants, entity_name
+                        )
                     elif pattern_def.get("properties"):
                         # Если свойства определены напрямую (без oneOf)
-                        result[object_name] = self._build_direct_template(pattern_def)
+                        template = self._build_direct_template(pattern_def)
+                        result[object_name] = self._add_system_fields(
+                            template, entity_name
+                        )
 
         return result
+
+    def _add_system_fields(
+        self, template: dict[str, Any], entity_name: str
+    ) -> dict[str, Any]:
+        """Добавить системные поля OID и schema."""
+        # Проверяем, является ли template словарём вариантов (LAN/WAN)
+        if template and all(isinstance(v, dict) for v in template.values()):
+            # Это словарь вариантов, добавляем поля в каждый вариант
+            for variant_name, variant_data in template.items():
+                variant_data["OID"] = ""
+                variant_data["schema"] = entity_name
+        else:
+            # Это простой шаблон
+            template["OID"] = ""
+            template["schema"] = entity_name
+        return template
 
     def _get_objects_for_entity(self, entity_name: str) -> list[str]:
         """Получить имена объектов для сущности."""
