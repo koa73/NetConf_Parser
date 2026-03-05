@@ -1440,6 +1440,8 @@ class NetworkVisualizer:
                 try:
                     # Меняем в шаблоне шаблоне parent_id
                     diagram.drawio_node_object_xml = self.set_parent(diagram.drawio_node_object_xml, obj_data.get('pattern', 1))
+                    data = obj_data.get('data', {})
+                    data['OID'] = obj_id
 
                     # Добавляем объект на диаграмму
                     diagram.add_node(
@@ -1450,7 +1452,7 @@ class NetworkVisualizer:
                         height=obj_data.get('height', 50),
                         style=obj_data.get('style', ''),
                         label=obj_data.get('label', obj_id),
-                        data=obj_data.get('data', {})
+                        data= data
                     )
                     added += 1
 
