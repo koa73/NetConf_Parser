@@ -8,6 +8,7 @@ SEAF Converter - модуль для работы с YAML схемами SEAF.
 import re
 from pathlib import Path
 from typing import Any
+import xml.etree.ElementTree as ET
 
 import yaml
 
@@ -524,6 +525,193 @@ class DeviceDataMapper:
                     networks.add(normalized)
 
         return sorted(list(networks))
+
+
+class DrawioConverter:
+    """
+    Конвертер DRAWIO файлов в YAML формат SEAF.
+
+    Извлекает объекты из DRAWIO файла, имеющие атрибут schema,
+    и конвертирует их в YAML формат на основе схем.
+    """
+
+    def __init__(self, patterns_dir: str | Path | None = None) -> None:
+        """
+        Инициализировать конвертер.
+
+        Args:
+            patterns_dir: Путь к каталогу с YAML схемами.
+        """
+        if patterns_dir is None:
+            current_file = Path(__file__).resolve()
+            project_root = current_file.parent.parent
+            patterns_dir = project_root / "patterns" / "seaf"
+
+        self.patterns_dir = Path(patterns_dir)
+        self._schemas: dict[str, dict[str, Any]] = {}
+
+    def _load_schemas(self) -> None:
+        """Загрузить все схемы из каталога."""
+        if not self.patterns_dir.exists():
+            return
+
+        for yaml_file in self.patterns_dir.glob("*.yaml"):
+            with open(yaml_file, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+                entities = data.get("entities", {})
+                for entity_name, entity_data in entities.items():
+                    self._schemas[entity_name] = entity_data
+
+    def _get_object_key(self, obj_data: dict[str, Any]) -> str:
+        """
+        Определить ключ объекта для YAML.
+
+        Если OID не пустой, используется OID, иначе ID.
+
+        Args:
+            obj_data: Данные объекта
+
+        Returns:
+            Ключ объекта
+        """
+        oid = obj_data.get("OID", "")
+        if oid and oid != "":
+            return oid
+        return obj_data.get("id", "unknown")
+
+    def _parse_drawio_attributes(self, object_elem: ET.Element) -> dict[str, Any]:
+        """
+        Извлечь атрибуты из элемента object DRAWIO файла.
+
+        Args:
+            object_elem: XML элемент object
+
+        Returns:
+            Словарь с атрибутами объекта
+        """
+        attrs = {}
+
+        # Извлекаем все атрибуты элемента
+        for key, value in object_elem.attrib.items():
+            if key in ("id", "label", "title"):
+                continue
+
+            # Пытаемся распарсить значения как Python-литералы
+            if value.startswith("[") and value.endswith("]"):
+                # Это список, извлекаем значения
+                try:
+                    # Удаляем кавычки и пробелы, разбиваем по запятой
+                    inner = value[1:-1].strip()
+                    if inner:
+                        items = [
+                            item.strip().strip("'\"")
+                            for item in inner.split(",")
+                        ]
+                        attrs[key] = items
+                    else:
+                        attrs[key] = []
+                except Exception:
+                    attrs[key] = value
+            elif value.startswith("{") and value.endswith("}"):
+                # Это словарь (пока не обрабатываем)
+                attrs[key] = value
+            elif value.isdigit():
+                attrs[key] = int(value)
+            elif value.replace(".", "", 1).isdigit():
+                attrs[key] = float(value)
+            else:
+                attrs[key] = value
+
+        # Добавляем ID и title
+        attrs["id"] = object_elem.get("id", "")
+        attrs["title"] = object_elem.get("title", "")
+
+        return attrs
+
+    def extract_objects_from_drawio(
+        self, drawio_path: str | Path
+    ) -> dict[str, dict[str, Any]]:
+        """
+        Извлечь объекты из DRAWIO файла.
+
+        Args:
+            drawio_path: Путь к DRAWIO файлу
+
+        Returns:
+            Словарь {schema: {object_key: object_data}}
+        """
+        drawio_path = Path(drawio_path)
+        if not drawio_path.exists():
+            raise FileNotFoundError(f"DRAWIO файл не найден: {drawio_path}")
+
+        # Загружаем схемы для определения допустимых полей
+        self._load_schemas()
+
+        # Парсим DRAWIO файл
+        tree = ET.parse(drawio_path)
+        root = tree.getroot()
+
+        result: dict[str, dict[str, Any]] = {}
+
+        # Находим все элементы object в файле
+        for object_elem in root.iter("object"):
+            # Извлекаем атрибуты
+            obj_data = self._parse_drawio_attributes(object_elem)
+
+            # Проверяем наличие schema
+            schema = obj_data.get("schema")
+            if not schema:
+                continue
+
+            # Определяем ключ объекта
+            obj_key = self._get_object_key(obj_data)
+
+            # Удаляем служебные поля из данных
+            obj_data_clean = {
+                k: v for k, v in obj_data.items()
+                if k not in ("id", "schema")
+            }
+
+            # Добавляем в результат
+            if schema not in result:
+                result[schema] = {}
+
+            result[schema][obj_key] = obj_data_clean
+
+        return result
+
+    def convert_drawio_to_yaml(
+        self,
+        drawio_path: str | Path,
+        output_path: str | Path,
+        template: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Конвертировать DRAWIO файл в YAML формат SEAF.
+
+        Args:
+            drawio_path: Путь к DRAWIO файлу
+            output_path: Путь для выходного YAML файла
+            template: Шаблон из get_seaf_dictionary() (опционально)
+        """
+        # Извлекаем объекты
+        objects_by_schema = self.extract_objects_from_drawio(drawio_path)
+
+        # Формируем итоговую структуру
+        output_data: dict[str, dict[str, Any]] = {}
+
+        for schema, objects in objects_by_schema.items():
+            output_data[schema] = objects
+
+        # Записываем в YAML файл
+        with open(output_path, "w", encoding="utf-8") as f:
+            yaml.dump(
+                output_data,
+                f,
+                allow_unicode=True,
+                default_flow_style=False,
+                sort_keys=False,
+            )
 
 
 class SeafConverter:

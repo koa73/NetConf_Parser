@@ -1,6 +1,7 @@
 import os
 from lib.device_analyzer import *
 from lib.network_visualizer import NetworkVisualizer
+from lib.seaf_converter import DrawioConverter
 
 CONFIG_DIR = "./data"
 PATTERNS_DIR = "./patterns"
@@ -9,6 +10,7 @@ DRAWIO_TEMPLATES = os.path.join(PATTERNS_DIR, "drawio")
 STENCIL_TEMPLATES = os.path.join(DRAWIO_TEMPLATES, "templates")
 REPORT = "network_details.txt"
 DIAGRAM = "network_diagram.drawio"
+SEAF_YAML = "seaf.yaml"
 
 
 def main():
@@ -81,6 +83,28 @@ def main():
 
         # Создаем диаграмму DraeIO
         viz.create_drawio_diagram(objects)
+
+    # Интерактивный запрос на конвертацию DRAWIO в YAML
+    print("\n" + "=" * 60)
+    convert_choice = input("Произвести конвертацию данных из drawio файла? (Y/N): ").strip().lower()
+
+    if convert_choice in ('y', 'yes', 'д', 'да'):
+        print("\n🔄 Конвертация DRAWIO в YAML...")
+
+        if os.path.exists(DIAGRAM):
+            try:
+                converter = DrawioConverter()
+                converter.convert_drawio_to_yaml(DIAGRAM, SEAF_YAML)
+                print(f"✅ YAML файл успешно создан: {SEAF_YAML}")
+            except Exception as e:
+                sys.stderr.write(f"❌ Ошибка конвертации: {e}\n")
+        else:
+            sys.stderr.write(f"⚠️  Файл диаграммы не найден: {DIAGRAM}\n")
+    else:
+        print("\n⏭️  Конвертация пропущена")
+
+    print("\n" + "=" * 60)
+    print("Работа завершена")
 
 if __name__ == "__main__":
     main()
