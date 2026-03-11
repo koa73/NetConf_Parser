@@ -180,40 +180,122 @@ class NetworkDevice:
 
         # Извлечение интерфейсов с IP
         if "interfaces" in rules:
-            current_interface = None
-            interface_ip = None
-            is_disabled = False
-
-            for line in self.content_lines:
-                iface_match = re.search(rules["interfaces"]["start"], line, re.IGNORECASE)
-                if iface_match:
-                    if current_interface and interface_ip and not is_disabled:
-                        result["routing_networks"].append({
-                            "interface": current_interface,
-                            "network": interface_ip
-                        })
-                    current_interface = iface_match.group(1).strip()
-                    interface_ip = None
-                    is_disabled = False
-                    continue
-
-                if current_interface and "ip_pattern" in rules["interfaces"]:
-                    ip_match = re.search(rules["interfaces"]["ip_pattern"], line, re.IGNORECASE)
-                    if ip_match:
+            # Проверка на формат MikroTik (секционный: /ip address ... add address=X interface=Y)
+            is_mikrotik_format = "section_header" in rules["interfaces"]
+            
+            if is_mikrotik_format:
+                # Обработка формата MikroTik
+                section_header = rules["interfaces"].get("section_header", "")
+                ip_pattern = rules["interfaces"].get("ip_pattern", "")
+                iface_pattern = rules["interfaces"].get("interface_pattern", "")
+                disable_pattern = rules["interfaces"].get("disable_pattern", "")
+                
+                in_section = False
+                section_line = ""
+                
+                for line in self.content_lines:
+                    # Проверка на заголовок секции
+                    if re.search(section_header, line, re.IGNORECASE):
+                        in_section = True
+                        section_line = line
+                        continue
+                    
+                    # Если в другой секции - пропускаем
+                    if in_section and line.startswith("/"):
+                        in_section = False
+                        continue
+                    
+                    if not in_section:
+                        continue
+                    
+                    # Проверка на отключённый интерфейс
+                    if disable_pattern and re.search(disable_pattern, line, re.IGNORECASE):
+                        continue
+                    
+                    # Проверка на строку добавления адреса
+                    if not line.startswith("add"):
+                        continue
+                    
+                    ip_match = re.search(ip_pattern, line, re.IGNORECASE)
+                    iface_match = re.search(iface_pattern, line, re.IGNORECASE)
+                    
+                    if ip_match and iface_match:
                         try:
-                            interface_ip = f"{ip_match.group(1)}/{ip_match.group(2)}"
+                            interface_ip = ip_match.group(1)
                         except IndexError:
                             interface_ip = ip_match.group(1)
+                        
+                        interface_name = iface_match.group(1).strip()
+                        
+                        result["routing_networks"].append({
+                            "interface": interface_name,
+                            "network": interface_ip
+                        })
+            elif "interface_pattern" in rules["interfaces"]:
+                # Обработка однострочного формата (address=X interface=Y в одной строке)
+                ip_pattern = rules["interfaces"].get("ip_pattern", "")
+                iface_pattern = rules["interfaces"].get("interface_pattern", "")
+                disable_pattern = rules["interfaces"].get("disable_pattern", "")
+                
+                for line in self.content_lines:
+                    # Проверка на отключённый интерфейс
+                    if disable_pattern and re.search(disable_pattern, line, re.IGNORECASE):
+                        continue
+                    
+                    ip_match = re.search(ip_pattern, line, re.IGNORECASE)
+                    iface_match = re.search(iface_pattern, line, re.IGNORECASE)
+                    
+                    if ip_match and iface_match:
+                        try:
+                            interface_ip = ip_match.group(1)
+                            # Нормализация: добавляем маску если есть
+                            if "/" not in interface_ip and len(ip_match.groups()) >= 2:
+                                interface_ip = f"{ip_match.group(1)}/{ip_match.group(2)}"
+                        except IndexError:
+                            interface_ip = ip_match.group(1)
+                        
+                        interface_name = iface_match.group(1).strip()
+                        
+                        result["routing_networks"].append({
+                            "interface": interface_name,
+                            "network": interface_ip
+                        })
+            else:
+                # Стандартный формат (многострочный: interface X ... ip address Y)
+                current_interface = None
+                interface_ip = None
+                is_disabled = False
 
-                if current_interface and "disable_pattern" in rules["interfaces"]:
-                    if re.search(rules["interfaces"]["disable_pattern"], line, re.IGNORECASE):
-                        is_disabled = True
+                for line in self.content_lines:
+                    iface_match = re.search(rules["interfaces"]["start"], line, re.IGNORECASE)
+                    if iface_match:
+                        if current_interface and interface_ip and not is_disabled:
+                            result["routing_networks"].append({
+                                "interface": current_interface,
+                                "network": interface_ip
+                            })
+                        current_interface = iface_match.group(1).strip()
+                        interface_ip = None
+                        is_disabled = False
+                        continue
 
-            if current_interface and interface_ip and not is_disabled:
-                result["routing_networks"].append({
-                    "interface": current_interface,
-                    "network": interface_ip
-                })
+                    if current_interface and "ip_pattern" in rules["interfaces"]:
+                        ip_match = re.search(rules["interfaces"]["ip_pattern"], line, re.IGNORECASE)
+                        if ip_match:
+                            try:
+                                interface_ip = f"{ip_match.group(1)}/{ip_match.group(2)}"
+                            except IndexError:
+                                interface_ip = ip_match.group(1)
+
+                    if current_interface and "disable_pattern" in rules["interfaces"]:
+                        if re.search(rules["interfaces"]["disable_pattern"], line, re.IGNORECASE):
+                            is_disabled = True
+
+                if current_interface and interface_ip and not is_disabled:
+                    result["routing_networks"].append({
+                        "interface": current_interface,
+                        "network": interface_ip
+                    })
 
         # Извлечение VLAN
         if "vlans" in rules:
@@ -276,6 +358,11 @@ class NetworkDevice:
 
         # Этап 2: Извлечение данных
         self.device_name = self._extract_with_pattern(pattern.get("name_patterns", []))
+        
+        # Fallback: если имя не извлечено, используем имя файла без расширения
+        if self.device_name == "unknown":
+            self.device_name = self.filename.rsplit('.', 1)[0]
+        
         self.model = self._extract_model_with_fallback(pattern.get("model_patterns", []), self.vendor)
 
         # Этап 3: Определение типа
@@ -320,6 +407,22 @@ class NetworkDevice:
         else:
             self.management_info = {}
 
+        # Этап 6: Извлечение маршрутов (routing extraction)
+        routing_rules = pattern.get("routing_extraction_rules", {})
+        if routing_rules.get("enabled"):
+            self.routing_paths = self._extract_routing_paths(routing_rules)
+        else:
+            self.routing_paths = []
+
+        # Этап 7: Добавление BGP local адресов в routing_networks
+        if hasattr(self, 'bgp_info') and self.bgp_info.get('local_addresses'):
+            for local_ip in self.bgp_info['local_addresses']:
+                # Добавляем как /32 сеть
+                self.routing_networks.append({
+                    "interface": "BGP",
+                    "network": f"{local_ip}/32"
+                })
+
         return True
 
     def _extract_bgp_info(self, rules: Dict) -> Dict[str, Any]:
@@ -330,11 +433,12 @@ class NetworkDevice:
             "router_id": None,
             "neighbors": [],
             "evpn_neighbors": [],
-            "address_families": []
+            "address_families": [],
+            "local_addresses": []
         }
-        
+
         neighbor_descriptions = {}
-        
+
         for line in self.content_lines:
             # ASN
             if rules.get("asn_pattern"):
@@ -342,13 +446,21 @@ class NetworkDevice:
                 if match:
                     result["enabled"] = True
                     result["asn"] = match.group(1)
-            
+
             # Router ID
             if rules.get("router_id_pattern"):
                 match = re.search(rules["router_id_pattern"], line, re.IGNORECASE)
                 if match:
                     result["router_id"] = match.group(1)
-            
+
+            # Local address (MikroTik BGP local.address)
+            if rules.get("local_address_pattern"):
+                match = re.search(rules["local_address_pattern"], line, re.IGNORECASE)
+                if match:
+                    local_addr = match.group(1)
+                    if local_addr not in result["local_addresses"]:
+                        result["local_addresses"].append(local_addr)
+
             # Neighbor с remote-as
             if rules.get("neighbor_pattern"):
                 match = re.search(rules["neighbor_pattern"], line, re.IGNORECASE)
@@ -366,7 +478,7 @@ class NetworkDevice:
                             "description": neighbor_descriptions.get(neighbor_ip, ""),
                             "evpn_enabled": False
                         })
-            
+
             # Neighbor description
             if rules.get("neighbor_desc_pattern"):
                 match = re.search(rules["neighbor_desc_pattern"], line, re.IGNORECASE)
@@ -378,7 +490,7 @@ class NetworkDevice:
                     existing = next((n for n in result["neighbors"] if n["ip"] == neighbor_ip), None)
                     if existing:
                         existing["description"] = description
-            
+
             # Address-family
             if rules.get("address_family_pattern"):
                 match = re.search(rules["address_family_pattern"], line, re.IGNORECASE)
@@ -605,67 +717,200 @@ class NetworkDevice:
                     if len(gw_parts) > 1:
                         result["default_gateway"] = gw_parts[0]
                         result["default_gateway_iface"] = gw_parts[1]
-        
+
         return result
+
+    def _extract_routing_paths(self, rules: Dict) -> List[Dict[str, Any]]:
+        """Извлекает маршруты из конфигурации (для MikroTik и других вендоров)."""
+        routes = []
+        in_route_section = False
+        
+        # Объединяем многострочные команды (с продолжением \)
+        joined_lines = []
+        current_line = ""
+        
+        for line in self.content_lines:
+            if current_line:
+                current_line += " " + line.lstrip()
+            else:
+                current_line = line
+            
+            # Если строка заканчивается на \, продолжаем
+            if current_line.rstrip().endswith("\\"):
+                current_line = current_line.rstrip()[:-1]  # Удаляем \
+            else:
+                joined_lines.append(current_line)
+                current_line = ""
+        
+        # Обрабатываем последнюю строку
+        if current_line:
+            joined_lines.append(current_line)
+        
+        for line in joined_lines:
+            # Проверка на секцию /ip route (MikroTik формат)
+            if line.strip() == "/ip route":
+                in_route_section = True
+                continue
+            
+            # Выход из секции при переходе к другой
+            if in_route_section and line.startswith("/"):
+                in_route_section = False
+                continue
+            
+            if not in_route_section:
+                continue
+            
+            # Пропускаем строки, не начинающиеся с "add"
+            if not line.strip().startswith("add"):
+                continue
+            
+            # Извлечение dst-address и gateway
+            dst_match = re.search(r"dst-address=([^\s]+)", line)
+            # Извлекаем gateway, но не check-gateway (с учётом возможных пробелов после =)
+            gateway_match = re.search(r"(?<!check-)gateway=\s*([^\s]+)", line)
+            comment_match = re.search(r"comment=([^\s]+)", line)
+            disabled_match = re.search(r"disabled=(yes|no)", line)
+            
+            if dst_match and gateway_match:
+                dst_address = dst_match.group(1)
+                gateway = gateway_match.group(1)
+                comment = comment_match.group(1).strip('"') if comment_match else ""
+                disabled = disabled_match.group(1) == "yes" if disabled_match else False
+                
+                # Определяем интерфейс из gateway (если gateway не IP, а имя интерфейса)
+                interface = None
+                if not re.match(r"^\d+\.\d+\.\d+\.\d+$", gateway):
+                    interface = gateway
+                else:
+                    # Пытаемся найти vrf-interface
+                    vrf_intf_match = re.search(r"vrf-interface=([^\s]+)", line)
+                    if vrf_intf_match:
+                        interface = vrf_intf_match.group(1)
+                
+                routes.append({
+                    "dst_address": dst_address,
+                    "gateway": gateway,
+                    "interface": interface,
+                    "comment": comment,
+                    "disabled": disabled
+                })
+        
+        return routes
 
     def _extract_all_ip_interfaces(self) -> List[Dict[str, str]]:
         """Извлекает все интерфейсы с IP адресами из конфигурации."""
         interfaces = []
         current_interface = None
         is_shutdown = False
+
+        # Проверка на формат MikroTik (секционный: /ip address ... add address=X interface=Y)
+        is_mikrotik = any(line.startswith("/ip address") for line in self.content_lines)
         
-        for line in self.content_lines:
-            # Проверка на интерфейс
-            intf_match = re.search(r"^interface\s+(\S+)", line, re.IGNORECASE)
-            if intf_match:
-                # Сохраняем предыдущий интерфейс если был IP
-                if current_interface and not is_shutdown and current_interface.get('ip'):
-                    interfaces.append({
-                        'interface': current_interface['name'],
-                        'ip': current_interface.get('ip'),
-                        'mask': current_interface.get('mask'),
-                        'description': current_interface.get('description', '')
-                    })
-                
-                current_interface = {
-                    'name': intf_match.group(1),
-                    'ip': None,
-                    'mask': None,
-                    'description': ''
-                }
-                is_shutdown = False
-                continue
+        if is_mikrotik:
+            # Обработка формата MikroTik
+            in_section = False
             
-            if current_interface:
-                # IP адрес в формате CIDR (10.7.0.0/31) или с маской (10.7.0.0 255.255.255.254)
-                ip_cidr_match = re.search(r"ip address\s+(\S+)/(\d+)", line, re.IGNORECASE)
-                if ip_cidr_match:
-                    current_interface['ip'] = ip_cidr_match.group(1)
-                    current_interface['mask'] = ip_cidr_match.group(2)  # CIDR префикс
-                else:
-                    ip_mask_match = re.search(r"ip address\s+(\S+)\s+(\S+)", line, re.IGNORECASE)
-                    if ip_mask_match:
-                        current_interface['ip'] = ip_mask_match.group(1)
-                        current_interface['mask'] = ip_mask_match.group(2)
+            for line in self.content_lines:
+                # Проверка на заголовок секции
+                if line.strip() == "/ip address":
+                    in_section = True
+                    continue
                 
-                # Description
-                desc_match = re.search(r"description\s+(.+)", line, re.IGNORECASE)
-                if desc_match:
-                    current_interface['description'] = desc_match.group(1).strip()
+                # Если в другой секции - пропускаем
+                if in_section and line.startswith("/"):
+                    in_section = False
+                    continue
                 
-                # Shutdown
-                if re.search(r"^\s*shutdown\s*$", line, re.IGNORECASE):
-                    is_shutdown = True
-        
-        # Последний интерфейс
-        if current_interface and not is_shutdown and current_interface.get('ip'):
-            interfaces.append({
-                'interface': current_interface['name'],
-                'ip': current_interface['ip'],
-                'mask': current_interface['mask'],
-                'description': current_interface.get('description', '')
-            })
-        
+                if not in_section:
+                    continue
+                
+                # Проверка на строку добавления адреса
+                if not line.startswith("add"):
+                    continue
+                
+                # Проверка на отключённый интерфейс
+                if "disabled=yes" in line:
+                    continue
+                
+                # Извлечение address=X и interface=Y
+                addr_match = re.search(r"address=([^\s]+)", line)
+                intf_match = re.search(r"interface=([^\s]+)", line)
+                
+                if addr_match and intf_match:
+                    address = addr_match.group(1)
+                    interface = intf_match.group(1)
+                    
+                    # Разбор address=IP/mask
+                    if "/" in address:
+                        ip, mask = address.split("/", 1)
+                    else:
+                        ip = address
+                        mask = "32"
+                    
+                    # Извлечение description если есть
+                    desc_match = re.search(r"comment=([^\s]+)", line)
+                    description = desc_match.group(1).strip('"') if desc_match else ""
+                    
+                    interfaces.append({
+                        'interface': interface,
+                        'ip': ip,
+                        'mask': mask,
+                        'description': description
+                    })
+        else:
+            # Стандартный формат (Cisco/Huawei: interface X ... ip address Y)
+            for line in self.content_lines:
+                # Проверка на интерфейс
+                intf_match = re.search(r"^interface\s+(\S+)", line, re.IGNORECASE)
+                if intf_match:
+                    # Сохраняем предыдущий интерфейс если был IP
+                    if current_interface and not is_shutdown and current_interface.get('ip'):
+                        interfaces.append({
+                            'interface': current_interface['name'],
+                            'ip': current_interface.get('ip'),
+                            'mask': current_interface.get('mask'),
+                            'description': current_interface.get('description', '')
+                        })
+
+                    current_interface = {
+                        'name': intf_match.group(1),
+                        'ip': None,
+                        'mask': None,
+                        'description': ''
+                    }
+                    is_shutdown = False
+                    continue
+
+                if current_interface:
+                    # IP адрес в формате CIDR (10.7.0.0/31) или с маской (10.7.0.0 255.255.255.254)
+                    ip_cidr_match = re.search(r"ip address\s+(\S+)/(\d+)", line, re.IGNORECASE)
+                    if ip_cidr_match:
+                        current_interface['ip'] = ip_cidr_match.group(1)
+                        current_interface['mask'] = ip_cidr_match.group(2)  # CIDR префикс
+                    else:
+                        ip_mask_match = re.search(r"ip address\s+(\S+)\s+(\S+)", line, re.IGNORECASE)
+                        if ip_mask_match:
+                            current_interface['ip'] = ip_mask_match.group(1)
+                            current_interface['mask'] = ip_mask_match.group(2)
+
+                    # Description
+                    desc_match = re.search(r"description\s+(.+)", line, re.IGNORECASE)
+                    if desc_match:
+                        current_interface['description'] = desc_match.group(1).strip()
+
+                    # Shutdown
+                    if re.search(r"^\s*shutdown\s*$", line, re.IGNORECASE):
+                        is_shutdown = True
+
+            # Последний интерфейс
+            if current_interface and not is_shutdown and current_interface.get('ip'):
+                interfaces.append({
+                    'interface': current_interface['name'],
+                    'ip': current_interface['ip'],
+                    'mask': current_interface['mask'],
+                    'description': current_interface.get('description', '')
+                })
+
         return interfaces
 
     def to_dict(self) -> Dict[str, Any]:
@@ -684,7 +929,8 @@ class NetworkDevice:
             "port_channels": getattr(self, 'port_channels', []),
             "vxlan_info": getattr(self, 'vxlan_info', {}),
             "management_info": getattr(self, 'management_info', {}),
-            "all_ip_interfaces": getattr(self, 'all_ip_interfaces', [])
+            "all_ip_interfaces": getattr(self, 'all_ip_interfaces', []),
+            "routing_paths": getattr(self, 'routing_paths', [])
         }
 
 
@@ -970,6 +1216,37 @@ class NetworkTopologyAnalyzer:
                     intf['ip'],
                     intf['network_cidr']
                 ])
+
+            # Если mgmt интерфейсы не найдены, но есть routing_networks, добавляем их как mgmt
+            # Это нужно для одиночных устройств типа MikroTik
+            if not mgmt_ifs and device.get('routing_networks'):
+                for routing_net in device['routing_networks']:
+                    interface = routing_net.get('interface', '')
+                    network = routing_net.get('network', '')
+
+                    # Разбор network=IP/mask
+                    if "/" in network:
+                        ip, mask = network.split("/", 1)
+                        prefix = int(mask) if mask.isdigit() else 24
+                    else:
+                        ip = network
+                        prefix = 24
+
+                    # Вычисляем network_cidr
+                    try:
+                        network_obj = ipaddress.IPv4Network(f"{ip}/{prefix}", strict=False)
+                        network_cidr = str(network_obj)
+                    except ValueError:
+                        network_cidr = f"{ip}/{prefix}"
+
+                    mgmt_interfaces.append([
+                        device_name,
+                        device.get('vendor', 'unknown'),
+                        device.get('device_type', 'unknown'),
+                        interface,
+                        ip,
+                        network_cidr
+                    ])
 
         mgmt_interfaces.sort(key=lambda x: (x[5], x[0]))  # Sort by network_cidr then device_name
         return mgmt_interfaces

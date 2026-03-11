@@ -96,6 +96,7 @@ class NetworkVisualizer:
         Args:
             data (dict): Словарь с результатами линков, содержащий physical_links и mgmt_networks
             patterns (dict): Словарь шаблонов устройств, где ключи - это вендоры, а значения - списки шаблонов
+            dev (list): Список устройств с данными анализа
 
         Returns:
             dict: Словарь в формате {имя_устройства: {данные_из_шаблона}}
@@ -132,6 +133,13 @@ class NetworkVisualizer:
                     device2 = link[4]
                     unique_devices.add(device1)
                     unique_devices.add(device2)
+
+        # Добавляем устройства из списка dev, если они ещё не добавлены
+        # Это нужно для одиночных устройств без связей
+        for device in dev:
+            device_name = device.get('device_name')
+            if device_name and device_name != 'unknown':
+                unique_devices.add(device_name)
 
         # Для каждого уникального устройства находим соответствующий шаблон
         for device_name in unique_devices:
@@ -174,6 +182,14 @@ class NetworkVisualizer:
                             device_type = link[6].lower()
                             break
 
+            # Fallback: ищем vendor и device_type в списке dev
+            if not vendor and not device_type:
+                for device in dev:
+                    if device.get('device_name') == device_name:
+                        vendor = device.get('vendor', 'unknown').lower()
+                        device_type = device.get('device_type', 'unknown').lower()
+                        break
+
             # Если удалось определить vendor и type, ищем соответствующий шаблон
             if vendor and device_type:
                 # Ищем шаблон в словаре patterns
@@ -196,22 +212,36 @@ class NetworkVisualizer:
                         else:
                             continue
                         break
-                else:
-                    # Вендор не найден в patterns, используем default
-                    if 'default' in patterns:
-                        default_pattern = patterns['default']
-                        for pattern in default_pattern:
+                    
+                    # Если шаблон не найден, используем первый доступный шаблон вендора
+                    if device_name not in device_list:
+                        for pattern in vendor_patterns:
                             for key, template_data in pattern.items():
-                                if key == 'any':
+                                if key.lower() != 'network':  # Пропускаем шаблоны сетей
                                     device_data = template_data.copy()
                                     device_data['name'] = device_name
                                     device_data['id'] = device_name
                                     device_data['label'] = f"&lt;font style=&quot;color: light-dark(rgb(0, 0, 0), rgb(237, 237, 237)); line-height: 140%; font-size: 9px; &quot;&gt;&amp;nbsp;{device_name}&amp;nbsp;&lt;/font&gt;"
                                     device_list[device_name] = device_data
                                     break
-                            else:
-                                continue
-                            break
+                            if device_name in device_list:
+                                break
+                
+                # Если всё ещё не нашли шаблон, используем default
+                if device_name not in device_list and 'default' in patterns:
+                    default_pattern = patterns['default']
+                    for pattern in default_pattern:
+                        for key, template_data in pattern.items():
+                            if key == 'any':
+                                device_data = template_data.copy()
+                                device_data['name'] = device_name
+                                device_data['id'] = device_name
+                                device_data['label'] = f"&lt;font style=&quot;color: light-dark(rgb(0, 0, 0), rgb(237, 237, 237)); line-height: 140%; font-size: 9px; &quot;&gt;&amp;nbsp;{device_name}&amp;nbsp;&lt;/font&gt;"
+                                device_list[device_name] = device_data
+                                break
+                        else:
+                            continue
+                        break
             else:
                 # Если vendor и type не определены, используем дефолтный шаблон
                 if 'default' in patterns:
