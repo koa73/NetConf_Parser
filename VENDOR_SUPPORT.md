@@ -283,4 +283,4 @@ python3 main.py
 ## 📞 Контакты и поддержка
 
 - **GitHub Issues:** https://github.com/yourusername/netconf-parser/issues
-- **Документация:** QWEN.md, Readme.md
+- **Документация:** Readme.md
