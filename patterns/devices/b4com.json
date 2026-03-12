@@ -1,6 +1,6 @@
 {
   "vendor": "b4com",
-  "version": "1.2",
+  "version": "1.3",
   "vendor_signatures": [
     "^! Software version: BCOM_",
     "^feature netconf-ssh",
@@ -42,6 +42,19 @@
     "router_id_pattern": "^\\s+ospf router-id\\s+(\\S+)",
     "area_pattern": "^\\s+area\\s+(\\S+)\\s+authentication\\s+(\\S+)",
     "network_pattern": "^\\s+network\\s+(\\S+)\\s+area\\s+(\\S+)"
+  },
+  "lldp_extraction_rules": {
+    "enabled": true,
+    "lldp_run_pattern": "^lldp\\s+run",
+    "neighbor_description_pattern": "^\\s+description\\s+(.+)",
+    "lldp_agent_pattern": "^\\s+lldp-agent",
+    "chassis_id_pattern": "set lldp chassis-id-tlv\\s+(\\S+)",
+    "port_id_pattern": "set lldp port-id-tlv\\s+(\\S+)"
+  },
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "^\\s*shutdown\\s*$",
+    "no_shutdown_pattern": "^\\s*no\\s+shutdown\\s*$"
   },
   "network_extraction_rules": {
     "interfaces": {

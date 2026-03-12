@@ -366,7 +366,21 @@ class NetworkDevice:
         else:
             self.ospf_info = {}
 
-        # Этап 9: Добавление BGP local адресов в routing_networks
+        # Этап 9: Извлечение LLDP информации
+        lldp_rules = pattern.get("lldp_extraction_rules", {})
+        if lldp_rules.get("enabled"):
+            self.lldp_info = self._extract_lldp_info(lldp_rules)
+        else:
+            self.lldp_info = {}
+
+        # Этап 10: Извлечение статуса интерфейсов
+        intf_status_rules = pattern.get("interface_status_rules", {})
+        if intf_status_rules.get("enabled"):
+            self.interface_status = self._extract_interface_status(intf_status_rules)
+        else:
+            self.interface_status = {}
+
+        # Этап 11: Добавление BGP local адресов в routing_networks
         if hasattr(self, 'bgp_info') and self.bgp_info.get('local_addresses'):
             for local_ip in self.bgp_info['local_addresses']:
                 # Добавляем как /32 сеть
@@ -777,6 +791,129 @@ class NetworkDevice:
 
         return result
 
+    def _extract_lldp_info(self, rules: Dict) -> Dict[str, Any]:
+        """Извлекает информацию о LLDP конфигурации и соседях."""
+        result = {
+            "enabled": False,
+            "lldp_run": False,
+            "neighbors": []
+        }
+
+        current_interface = None
+        in_lldp_agent = False
+
+        for line in self.content_lines:
+            # Проверка глобального включения LLDP
+            if rules.get("lldp_run_pattern"):
+                match = re.search(rules["lldp_run_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["lldp_run"] = True
+                    result["enabled"] = True
+
+            # Определение интерфейса
+            intf_match = re.search(r"^interface\s+(\S+)", line, re.IGNORECASE)
+            if intf_match:
+                current_interface = intf_match.group(1)
+                in_lldp_agent = False
+                continue
+
+            # LLDP agent секция
+            if current_interface and rules.get("lldp_agent_pattern"):
+                match = re.search(rules["lldp_agent_pattern"], line, re.IGNORECASE)
+                if match:
+                    in_lldp_agent = True
+                    continue
+
+            if in_lldp_agent and current_interface:
+                # Chassis ID
+                if rules.get("chassis_id_pattern"):
+                    match = re.search(rules["chassis_id_pattern"], line, re.IGNORECASE)
+                    if match:
+                        # Ищем существующего соседа или создаём нового
+                        neighbor = next((n for n in result["neighbors"] if n["interface"] == current_interface), None)
+                        if not neighbor:
+                            neighbor = {
+                                "interface": current_interface,
+                                "chassis_id": None,
+                                "port_id": None,
+                                "description": None
+                            }
+                            result["neighbors"].append(neighbor)
+                        neighbor["chassis_id"] = match.group(1)
+
+                # Port ID
+                if rules.get("port_id_pattern"):
+                    match = re.search(rules["port_id_pattern"], line, re.IGNORECASE)
+                    if match:
+                        neighbor = next((n for n in result["neighbors"] if n["interface"] == current_interface), None)
+                        if not neighbor:
+                            neighbor = {
+                                "interface": current_interface,
+                                "chassis_id": None,
+                                "port_id": None,
+                                "description": None
+                            }
+                            result["neighbors"].append(neighbor)
+                        neighbor["port_id"] = match.group(1)
+
+                # Выход из LLDP agent секции
+                if re.search(r"^\s*exit\s*$", line, re.IGNORECASE):
+                    in_lldp_agent = False
+
+            # Description (сосед)
+            if current_interface and rules.get("neighbor_description_pattern"):
+                match = re.search(rules["neighbor_description_pattern"], line, re.IGNORECASE)
+                if match:
+                    neighbor = next((n for n in result["neighbors"] if n["interface"] == current_interface), None)
+                    if not neighbor:
+                        neighbor = {
+                            "interface": current_interface,
+                            "chassis_id": None,
+                            "port_id": None,
+                            "description": None
+                        }
+                        result["neighbors"].append(neighbor)
+                    neighbor["description"] = match.group(1).strip()
+
+        return result
+
+    def _extract_interface_status(self, rules: Dict) -> Dict[str, str]:
+        """Извлекает статус интерфейсов (up/down)."""
+        result = {}
+        current_interface = None
+        is_shutdown = False
+
+        for line in self.content_lines:
+            # Определение интерфейса
+            intf_match = re.search(r"^interface\s+(\S+)", line, re.IGNORECASE)
+            if intf_match:
+                # Сохраняем статус предыдущего интерфейса
+                if current_interface:
+                    result[current_interface] = "down" if is_shutdown else "up"
+
+                current_interface = intf_match.group(1)
+                is_shutdown = False
+                continue
+
+            if current_interface:
+                # Shutdown
+                if rules.get("shutdown_pattern"):
+                    match = re.search(rules["shutdown_pattern"], line, re.IGNORECASE)
+                    if match:
+                        is_shutdown = True
+
+                # No shutdown
+                if rules.get("no_shutdown_pattern"):
+                    match = re.search(rules["no_shutdown_pattern"], line, re.IGNORECASE)
+                    if match:
+                        is_shutdown = False
+
+        # Последний интерфейс
+        if current_interface:
+            result[current_interface] = "down" if is_shutdown else "up"
+
+        return result
+
     def _extract_routing_paths(self, rules: Dict) -> List[Dict[str, Any]]:
         """Извлекает маршруты из конфигурации на основе правил из шаблона.
         
@@ -1088,7 +1225,9 @@ class NetworkDevice:
             "all_ip_interfaces": getattr(self, 'all_ip_interfaces', []),
             "routing_paths": getattr(self, 'routing_paths', []),
             "vrf_info": getattr(self, 'vrf_info', {}),
-            "ospf_info": getattr(self, 'ospf_info', {})
+            "ospf_info": getattr(self, 'ospf_info', {}),
+            "lldp_info": getattr(self, 'lldp_info', {}),
+            "interface_status": getattr(self, 'interface_status', {})
         }
 
 
@@ -1769,6 +1908,40 @@ class ReportGenerator:
                         if len(ospf_info['networks']) > 10:
                             f.write(f"    ... и ещё {len(ospf_info['networks']) - 10} сетей\n")
 
+                # LLDP информация
+                lldp_info = r.get('lldp_info', {})
+                if lldp_info and lldp_info.get('enabled') and lldp_info.get('lldp_run'):
+                    f.write("\nLLDP Configuration:\n")
+                    f.write("  • LLDP: Enabled\n")
+                    if lldp_info.get('neighbors'):
+                        f.write(f"  • Neighbors: {len(lldp_info['neighbors'])} обнаружено\n")
+                        for neighbor in lldp_info['neighbors'][:10]:  # Ограничим вывод
+                            intf = neighbor.get('interface', 'N/A')
+                            desc = neighbor.get('description', 'N/A')
+                            chassis = neighbor.get('chassis_id', 'N/A')
+                            port = neighbor.get('port_id', 'N/A')
+                            f.write(f"    - {intf}: {desc}")
+                            if chassis != 'N/A' or port != 'N/A':
+                                f.write(f" (Chassis: {chassis}, Port: {port})")
+                            f.write("\n")
+                        if len(lldp_info['neighbors']) > 10:
+                            f.write(f"    ... и ещё {len(lldp_info['neighbors']) - 10} соседей\n")
+
+                # Статус интерфейсов
+                interface_status = r.get('interface_status', {})
+                if interface_status:
+                    up_count = sum(1 for s in interface_status.values() if s == 'up')
+                    down_count = sum(1 for s in interface_status.values() if s == 'down')
+                    f.write(f"\nInterface Status: {up_count} up, {down_count} down\n")
+                    # Показываем только интерфейсы в состоянии down
+                    down_interfaces = [intf for intf, status in interface_status.items() if status == 'down']
+                    if down_interfaces:
+                        f.write("  • Down interfaces:\n")
+                        for intf in down_interfaces[:10]:
+                            f.write(f"    - {intf}: DOWN\n")
+                        if len(down_interfaces) > 10:
+                            f.write(f"    ... и ещё {len(down_interfaces) - 10} интерфейсов\n")
+
                 f.write("\n")
 
             links = links_result.get("physical_links", [])
@@ -2121,6 +2294,20 @@ class ReportGenerator:
             total_vnis = sum(len(r.get('vxlan_info', {}).get('vnis', [])) for r in results)
             total_port_channels = sum(len(r.get('port_channels', [])) for r in results)
             total_bgp_sessions = sum(len(r.get('bgp_info', {}).get('neighbors', [])) for r in results)
+            
+            # LLDP статистика
+            total_lldp_neighbors = sum(len(r.get('lldp_info', {}).get('neighbors', [])) for r in results)
+            lldp_enabled_devices = sum(1 for r in results if r.get('lldp_info', {}).get('lldp_run'))
+            
+            # Статус интерфейсов
+            total_interfaces_up = sum(
+                sum(1 for s in r.get('interface_status', {}).values() if s == 'up')
+                for r in results
+            )
+            total_interfaces_down = sum(
+                sum(1 for s in r.get('interface_status', {}).values() if s == 'down')
+                for r in results
+            )
 
             f.write(f"    Общее количество устройств:     {total_devices}\n")
             f.write(f"      ├── Spine:                    {total_spine}\n")
@@ -2131,6 +2318,8 @@ class ReportGenerator:
             f.write(f"    VXLAN VNI (всего):              {total_vnis}\n")
             f.write(f"    Port-Channel интерфейсов:       {total_port_channels}\n")
             f.write(f"    BGP сессий (всего):             {total_bgp_sessions}\n")
+            f.write(f"    LLDP соседей (всего):           {total_lldp_neighbors} (на {lldp_enabled_devices} устройствах)\n")
+            f.write(f"    Интерфейсов:                    {total_interfaces_up} up, {total_interfaces_down} down\n")
             f.write(f"\n")
 
             # Физические связи из links_result
