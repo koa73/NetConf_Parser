@@ -36,17 +36,42 @@
     {"pattern": "(Nexus\\s*\\d+)", "group": 1, "priority": 80},
     {"pattern": "(ASA\\s*\\d+)", "group": 1, "priority": 80}
   ],
-  
-  "type_inference": [
-    {"any": ["C9500", "C9400", "C9300", "C9200", "WS-C", "C2960", "C3750", "C3650", "Catalyst"], "type": "switch", "score": 95},
-    {"any": ["Nexus", "NX-OS", "n9000", "n7000", "n5000", "n3000", "feature vpc", "boot nxos"], "type": "switch", "score": 95},
-    {"any": ["ASA", "nameif", "security-level", "access-group", ": Saved"], "type": "firewall", "score": 90},
-    {"any": ["router ospf", "router bgp", "router eigrp", "ip routing", "ip forward-protocol"], "type": "router", "score": 85},
-    {"any": ["switchport", "vlan ", "spanning-tree", "vtp mode"], "type": "switch", "score": 80},
-    {"any": ["CAT9K_IOSXE", "CAT9K_LITE_IOSXE"], "type": "switch", "score": 90}
-  ],
-  
+
   "default_device_type": "router_or_switch",
+
+  "type_rules": [
+    {
+      "description": "Cisco Catalyst / Nexus switches",
+      "any": ["C9500", "C9400", "C9300", "C9200", "WS-C", "C2960", "C3750", "C3650", "Catalyst", "Nexus", "NX-OS", "n9000", "n7000", "n5000", "n3000", "feature vpc", "boot nxos"],
+      "type": "switch",
+      "score": 95
+    },
+    {
+      "description": "Cisco ASA Firewall",
+      "any": ["ASA", "nameif", "security-level", "access-group", ": Saved"],
+      "type": "firewall",
+      "score": 90
+    },
+    {
+      "description": "Cisco Router",
+      "all": ["router ospf", "router bgp"],
+      "any": ["router eigrp", "ip routing", "ip forward-protocol"],
+      "type": "router",
+      "score": 85
+    },
+    {
+      "description": "Cisco Switch (VLAN features)",
+      "any": ["switchport", "vlan ", "spanning-tree", "vtp mode"],
+      "type": "switch",
+      "score": 80
+    },
+    {
+      "description": "Cisco Catalyst 9K IOS-XE",
+      "any": ["CAT9K_IOSXE", "CAT9K_LITE_IOSXE"],
+      "type": "switch",
+      "score": 90
+    }
+  ],
 
   "model_fallback_rules": [
     {

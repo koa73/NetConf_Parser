@@ -8,39 +8,67 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple, Set, Union
 import ipaddress
 from collections import Counter
+from .pattern_validator import PatternValidator
 
 
 class VendorPatternLoader:
     """Загрузчик шаблонов распознавания вендоров из JSON-файлов."""
 
-    def __init__(self, patterns_dir: Union[str, Path]):
+    def __init__(self, patterns_dir: Union[str, Path], validate: bool = True):
         self.patterns_dir = Path(patterns_dir).resolve()
         self.patterns: List[Dict[str, Any]] = []
+        self.validator: PatternValidator = None
+        
+        # Инициализация валидатора если включена валидация
+        if validate:
+            schema_path = self.patterns_dir.parent / "schema.json"
+            if schema_path.exists():
+                self.validator = PatternValidator(str(schema_path))
 
     def load_patterns(self) -> List[Dict[str, Any]]:
-        """Загружает все шаблоны из каталога."""
+        """Загружает все шаблоны из каталога с опциональной валидацией."""
         if not self.patterns_dir.exists():
             sys.stderr.write(f"❌ Каталог шаблонов не найден: {self.patterns_dir}\n")
             sys.exit(1)
 
         self.patterns = []
+        errors_found = False
+        
         for filepath in self.patterns_dir.glob("*.json"):
             try:
                 with open(filepath, 'r', encoding='utf-8-sig') as f:
                     pattern = json.load(f)
-                    pattern['_source_file'] = filepath.name
-                    self.patterns.append(pattern)
-                    print(
-                        f"✅ Загружен шаблон: {filepath.name} "
-                        f"(версия {pattern.get('version', 'unknown')})"
-                    )
+                
+                # Валидация шаблона
+                if self.validator:
+                    is_valid, validation_errors = self.validator.validate(pattern)
+                    if not is_valid:
+                        sys.stderr.write(f"❌ Ошибки валидации в {filepath.name}:\n")
+                        for error in validation_errors:
+                            sys.stderr.write(f"   • {error}\n")
+                        errors_found = True
+                        continue
+                
+                pattern['_source_file'] = filepath.name
+                self.patterns.append(pattern)
+                status = "✅" if not self.validator else "✅✓"
+                print(
+                    f"{status} Загружен шаблон: {filepath.name} "
+                    f"(версия {pattern.get('version', 'unknown')})"
+                )
+            except json.JSONDecodeError as e:
+                sys.stderr.write(f"❌ Ошибка JSON в файле {filepath.name}: {e}\n")
+                errors_found = True
             except Exception as e:
                 sys.stderr.write(f"❌ Ошибка в файле {filepath.name}: {e}\n")
-                sys.exit(1)
+                errors_found = True
 
         if not self.patterns:
-            sys.stderr.write(f"⚠️  В каталоге {self.patterns_dir} не найдено шаблонов (*.json)\n")
+            sys.stderr.write(f"⚠️  В каталоге {self.patterns_dir} не найдено корректных шаблонов (*.json)\n")
             sys.exit(1)
+        
+        if errors_found:
+            sys.stderr.write("\n⚠️  Некоторые шаблоны не загружены из-за ошибок\n")
 
         return self.patterns
 
@@ -139,23 +167,53 @@ class NetworkDevice:
         return "unknown"
 
     def _infer_type_by_features(self, type_rules: List[Dict]) -> str:
-        """Определяет тип устройства по наличию функций."""
+        """
+        Определяет тип устройства по наличию функций.
+        
+        Поддерживает два формата правил:
+        1. Старый формат (type_inference): {"any": [...], "type": "...", "score": N}
+        2. Новый формат (type_rules): {"any"/"all"/"not": [...], "type": "...", "score": N}
+        """
         best_type = "unknown"
         best_score = -1
+        
         for rule in type_rules:
             score = rule.get("score", 1)
-            matched = False
-
-            if "any" in rule:
-                matched = any(pat.lower() in self.content_lower for pat in rule["any"])
-            elif "all" in rule:
-                matched = all(pat.lower() in self.content_lower for pat in rule["all"])
-
+            matched = self._check_type_conditions(rule)
+            
             if matched and score > best_score:
                 best_score = score
                 best_type = rule["type"]
-
+        
         return best_type
+
+    def _check_type_conditions(self, rule: Dict) -> bool:
+        """
+        Проверяет условия правила для определения типа устройства.
+        
+        Args:
+            rule: Правило с условиями (any, all, not)
+            
+        Returns:
+            True если все условия выполнены
+        """
+        matched = False
+        
+        # Проверка условия "any" (хотя бы один паттерн)
+        if "any" in rule:
+            matched = any(pat.lower() in self.content_lower for pat in rule["any"])
+        
+        # Проверка условия "all" (все паттерны)
+        if "all" in rule:
+            all_matched = all(pat.lower() in self.content_lower for pat in rule["all"])
+            matched = matched and all_matched if "any" in rule else all_matched
+        
+        # Проверка условия "not" (ни один паттерн не должен совпасть)
+        if "not" in rule:
+            not_matched = not any(pat.lower() in self.content_lower for pat in rule["not"])
+            matched = matched and not_matched
+        
+        return matched
 
     def _extract_networks_and_vlans(self, rules: Dict) -> Dict[str, Any]:
         """Извлекает сети и VLAN согласно правилам шаблона.
@@ -244,8 +302,10 @@ class NetworkDevice:
         self.model = self._extract_model_with_fallback(pattern.get("model_patterns", []), self.vendor)
 
         # Этап 3: Определение типа
-        if "type_inference" in pattern:
-            self.device_type = self._infer_type_by_features(pattern["type_inference"])
+        # Приоритет: type_rules (новый формат) > type_inference (старый формат)
+        type_rules = pattern.get("type_rules") or pattern.get("type_inference")
+        if type_rules:
+            self.device_type = self._infer_type_by_features(type_rules)
         if self.device_type == "unknown":
             self.device_type = pattern.get("default_device_type", "unknown")
 
