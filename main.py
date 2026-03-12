@@ -3,7 +3,7 @@ from lib.device_analyzer import *
 from lib.network_visualizer import NetworkVisualizer
 from lib.seaf_converter import DrawioConverter
 
-CONFIG_DIR = "./data"
+CONFIG_DIR = "./data_7"
 PATTERNS_DIR = "./patterns"
 PATTERNS_DIR_DEV = os.path.join(PATTERNS_DIR, "devices")
 DRAWIO_TEMPLATES = os.path.join(PATTERNS_DIR, "drawio")

@@ -1,6 +1,6 @@
 {
   "vendor": "b4com",
-  "version": "1.1",
+  "version": "1.2",
   "vendor_signatures": [
     "^! Software version: BCOM_",
     "^feature netconf-ssh",
@@ -17,15 +17,32 @@
   ],
   "model_patterns": [
     {"pattern": "^! Software version: (BCOM_[A-Z0-9\\-]+)", "group": 1},
+    {"pattern": "^! Software version: (BCOM-MR[0-9]+-[A-Z0-9\\-]+)", "group": 1},
     {"pattern": "^! Software version: BCOM_([A-Z0-9]+)", "group": 1}
   ],
   "type_inference": [
     {"any": ["evpn", "vxlan", "nvo vxlan", "mac vrf"], "type": "switch", "score": 95},
     {"any": ["router bgp", "address-family ipv4", "address-family l2vpn evpn"], "type": "router", "score": 90},
     {"any": ["bridge", "vlan database", "switchport"], "type": "switch", "score": 85},
-    {"any": ["data-center-bridging", "port-group", "load-balance"], "type": "switch", "score": 80}
+    {"any": ["data-center-bridging", "port-group", "load-balance"], "type": "switch", "score": 80},
+    {"any": ["router ospf", "ospf router-id"], "type": "router", "score": 88},
+    {"all": ["router bgp", "neighbor.*remote-as", "address-family l2vpn evpn", "nvo vxlan"], "type": "spine-leaf switch", "score": 98},
+    {"all": ["router ospf", "ip vrf forwarding", "encapsulation dot1q"], "type": "border router", "score": 92}
   ],
   "default_device_type": "switch",
+  "vrf_extraction_rules": {
+    "enabled": true,
+    "vrf_definition_pattern": "^ip vrf\\s+(\\S+)",
+    "vrf_description_pattern": "^\\s+description\\s+(.+)",
+    "vrf_forwarding_pattern": "^\\s+ip vrf forwarding\\s+(\\S+)"
+  },
+  "ospf_extraction_rules": {
+    "enabled": true,
+    "process_pattern": "^router ospf\\s+(\\d+)\\s*(\\S+)?",
+    "router_id_pattern": "^\\s+ospf router-id\\s+(\\S+)",
+    "area_pattern": "^\\s+area\\s+(\\S+)\\s+authentication\\s+(\\S+)",
+    "network_pattern": "^\\s+network\\s+(\\S+)\\s+area\\s+(\\S+)"
+  },
   "network_extraction_rules": {
     "interfaces": {
       "start": "^interface\\s+(\\S+)",

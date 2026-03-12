@@ -7,6 +7,7 @@ templates:
   B4com:
     - switch: switch
     - router: router
+    - border router: router
   Cisco:
     - switch: switch
     - firewall: firewall

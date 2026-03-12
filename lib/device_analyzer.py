@@ -352,7 +352,21 @@ class NetworkDevice:
         else:
             self.routing_paths = []
 
-        # Этап 7: Добавление BGP local адресов в routing_networks
+        # Этап 7: Извлечение VRF информации
+        vrf_rules = pattern.get("vrf_extraction_rules", {})
+        if vrf_rules.get("enabled"):
+            self.vrf_info = self._extract_vrf_info(vrf_rules)
+        else:
+            self.vrf_info = {}
+
+        # Этап 8: Извлечение OSPF информации
+        ospf_rules = pattern.get("ospf_extraction_rules", {})
+        if ospf_rules.get("enabled"):
+            self.ospf_info = self._extract_ospf_info(ospf_rules)
+        else:
+            self.ospf_info = {}
+
+        # Этап 9: Добавление BGP local адресов в routing_networks
         if hasattr(self, 'bgp_info') and self.bgp_info.get('local_addresses'):
             for local_ip in self.bgp_info['local_addresses']:
                 # Добавляем как /32 сеть
@@ -655,6 +669,111 @@ class NetworkDevice:
                     if len(gw_parts) > 1:
                         result["default_gateway"] = gw_parts[0]
                         result["default_gateway_iface"] = gw_parts[1]
+
+        return result
+
+    def _extract_vrf_info(self, rules: Dict) -> Dict[str, Any]:
+        """Извлекает информацию о VRF (Virtual Routing and Forwarding)."""
+        result = {
+            "enabled": False,
+            "vrfs": []
+        }
+
+        current_vrf = None
+
+        for line in self.content_lines:
+            # Определение VRF
+            if rules.get("vrf_definition_pattern"):
+                match = re.search(rules["vrf_definition_pattern"], line, re.IGNORECASE)
+                if match:
+                    vrf_name = match.group(1)
+                    if vrf_name.lower() != "management":  # Исключаем management VRF
+                        current_vrf = {
+                            "name": vrf_name,
+                            "description": None,
+                            "interfaces": []
+                        }
+                        result["enabled"] = True
+                        result["vrfs"].append(current_vrf)
+                    continue
+
+            # Описание VRF
+            if current_vrf and rules.get("vrf_description_pattern"):
+                match = re.search(rules["vrf_description_pattern"], line, re.IGNORECASE)
+                if match:
+                    current_vrf["description"] = match.group(1).strip()
+
+            # Интерфейсы в VRF
+            if rules.get("vrf_forwarding_pattern"):
+                match = re.search(rules["vrf_forwarding_pattern"], line, re.IGNORECASE)
+                if match:
+                    vrf_name = match.group(1)
+                    if vrf_name.lower() != "management":
+                        # Ищем существующий VRF или создаём новый
+                        existing_vrf = next((v for v in result["vrfs"] if v["name"] == vrf_name), None)
+                        if not existing_vrf:
+                            existing_vrf = {
+                                "name": vrf_name,
+                                "description": None,
+                                "interfaces": []
+                            }
+                            result["vrfs"].append(existing_vrf)
+                            result["enabled"] = True
+
+        return result
+
+    def _extract_ospf_info(self, rules: Dict) -> Dict[str, Any]:
+        """Извлекает информацию об OSPF конфигурации."""
+        result = {
+            "enabled": False,
+            "process_id": None,
+            "vrf": None,
+            "router_id": None,
+            "areas": [],
+            "networks": []
+        }
+
+        current_area = None
+
+        for line in self.content_lines:
+            # OSPF процесс
+            if rules.get("process_pattern"):
+                match = re.search(rules["process_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["enabled"] = True
+                    result["process_id"] = match.group(1)
+                    if match.lastindex >= 2 and match.group(2):
+                        result["vrf"] = match.group(2)
+                    continue
+
+            # Router ID
+            if result["enabled"] and rules.get("router_id_pattern"):
+                match = re.search(rules["router_id_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["router_id"] = match.group(1)
+
+            # OSPF Area с authentication
+            if result["enabled"] and rules.get("area_pattern"):
+                match = re.search(rules["area_pattern"], line, re.IGNORECASE)
+                if match:
+                    current_area = match.group(1)
+                    auth_type = match.group(2)
+                    if current_area not in result["areas"]:
+                        result["areas"].append({
+                            "area_id": current_area,
+                            "authentication": auth_type
+                        })
+
+            # OSPF Network
+            if result["enabled"] and rules.get("network_pattern"):
+                match = re.search(rules["network_pattern"], line, re.IGNORECASE)
+                if match:
+                    network = match.group(1)
+                    area = match.group(2)
+                    result["networks"].append({
+                        "network": network,
+                        "area": area
+                    })
 
         return result
 
@@ -967,7 +1086,9 @@ class NetworkDevice:
             "vxlan_info": getattr(self, 'vxlan_info', {}),
             "management_info": getattr(self, 'management_info', {}),
             "all_ip_interfaces": getattr(self, 'all_ip_interfaces', []),
-            "routing_paths": getattr(self, 'routing_paths', [])
+            "routing_paths": getattr(self, 'routing_paths', []),
+            "vrf_info": getattr(self, 'vrf_info', {}),
+            "ospf_info": getattr(self, 'ospf_info', {})
         }
 
 
@@ -1616,6 +1737,37 @@ class ReportGenerator:
                             f.write(f"  {line.rstrip()}\n")
                 except Exception as e:
                     f.write(f"  ⚠️ Не удалось прочитать конфигурацию: {str(e)}\n")
+
+                # VRF информация
+                vrf_info = r.get('vrf_info', {})
+                if vrf_info and vrf_info.get('enabled') and vrf_info.get('vrfs'):
+                    f.write("\nVRF (Virtual Routing and Forwarding):\n")
+                    for vrf in vrf_info['vrfs']:
+                        f.write(f"  • VRF: {vrf['name']}\n")
+                        if vrf.get('description'):
+                            f.write(f"    Description: {vrf['description']}\n")
+
+                # OSPF информация
+                ospf_info = r.get('ospf_info', {})
+                if ospf_info and ospf_info.get('enabled'):
+                    f.write("\nOSPF Configuration:\n")
+                    f.write(f"  • Process ID: {ospf_info.get('process_id', 'N/A')}\n")
+                    if ospf_info.get('vrf'):
+                        f.write(f"  • VRF: {ospf_info['vrf']}\n")
+                    if ospf_info.get('router_id'):
+                        f.write(f"  • Router ID: {ospf_info['router_id']}\n")
+                    if ospf_info.get('areas'):
+                        f.write("  • Areas:\n")
+                        for area in ospf_info['areas']:
+                            area_id = area.get('area_id', 'N/A')
+                            auth = area.get('authentication', 'N/A')
+                            f.write(f"    - Area {area_id}: Authentication = {auth}\n")
+                    if ospf_info.get('networks'):
+                        f.write("  • Networks:\n")
+                        for net in ospf_info['networks'][:10]:  # Ограничим вывод
+                            f.write(f"    - {net['network']} → Area {net['area']}\n")
+                        if len(ospf_info['networks']) > 10:
+                            f.write(f"    ... и ещё {len(ospf_info['networks']) - 10} сетей\n")
 
                 f.write("\n")
 
