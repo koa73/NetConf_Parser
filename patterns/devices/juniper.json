@@ -29,6 +29,30 @@
     {"any": ["MX", "PTX", "protocols {", "router-id", "ospf", "bgp", "mpls"], "type": "router", "score": 85}
   ],
   "default_device_type": "router_or_switch",
+
+  "model_fallback_rules": [
+    {
+      "description": "Juniper QFX Series (EVPN/VXLAN)",
+      "conditions": {"any": ["qfx", "evpn", "vxlan"]},
+      "model": "QFX Series (EVPN/VXLAN Switch)"
+    },
+    {
+      "description": "Juniper EX Series Switch",
+      "conditions": {"any": ["ex", "ethernet-switching"]},
+      "model": "EX Series (Switch)"
+    },
+    {
+      "description": "Juniper SRX Series Firewall",
+      "conditions": {"any": ["srx", "security {"]},
+      "model": "SRX Series (Firewall)"
+    },
+    {
+      "description": "Juniper MX Series Router",
+      "conditions": {"any": ["mx", "mpls"]},
+      "model": "MX Series (Router)"
+    }
+  ],
+
   "network_extraction_rules": {
     "interfaces": {
       "start": "^(?:interface\\s+|set interfaces\\s+)([^{\\s]+)",

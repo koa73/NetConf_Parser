@@ -38,6 +38,40 @@
     {"any": ["ar12", "ar22", "ar32"], "type": "enterprise_router", "score": 70}
   ],
   "default_device_type": "router_or_switch",
+
+  "model_fallback_rules": [
+    {
+      "description": "Huawei CE6881 Data Center Switch",
+      "conditions": {"all": ["ce6881"]},
+      "model": "CE6881-48S6CQ"
+    },
+    {
+      "description": "Huawei CE Series Data Center Switch",
+      "conditions": {"any": ["ce68", "ce88"]},
+      "model": "CE Series (Data Center Switch)"
+    },
+    {
+      "description": "Huawei NE Series Carrier Router",
+      "conditions": {"any": ["ne40", "ne80"]},
+      "model": "NE Series (Carrier Router)"
+    },
+    {
+      "description": "Huawei S Series Enterprise Switch",
+      "conditions": {"any": ["s57", "s67"]},
+      "model": "S Series (Enterprise Switch)"
+    },
+    {
+      "description": "Huawei MA Series OLT",
+      "conditions": {"any": ["ma56", "gpon"]},
+      "model": "MA5600/MA5800 Series (OLT)"
+    },
+    {
+      "description": "Huawei USG Series Firewall",
+      "conditions": {"any": ["firewall", "security-policy"]},
+      "model": "USG Series (Firewall)"
+    }
+  ],
+
   "network_extraction_rules": {
     "interfaces": {
       "start": "^interface\\s+(.+)",
@@ -48,5 +82,12 @@
       "all_pattern": "(?:vlan|vlan batch)\\s+(\\d+)",
       "active_pattern": "(?:port default vlan|port trunk allow-pass vlan)\\s+(\\d+)"
     }
+  },
+
+  "routing_extraction_rules": {
+    "enabled": true,
+    "format": "static_route",
+    "static_route_pattern": "^ip route-static\\s+(\\S+)\\s+(\\S+)\\s*(\\S+)?",
+    "default_route_pattern": "^ip route-static\\s+0\\.0\\.0\\.0\\s+0\\.0\\.0\\.0\\s+(\\S+)"
   }
 }

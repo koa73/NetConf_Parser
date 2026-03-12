@@ -57,8 +57,14 @@
 
   "routing_extraction_rules": {
     "enabled": true,
-    "route_pattern": "^/ip route add.*dst-address=([\\d\\.\\/]+).*gateway=([^\\s]+)",
-    "default_route_pattern": "^/ip route add.*dst-address=0\\.0\\.0\\.0/0.*gateway=([^\\s]+)"
+    "format": "mikrotik_section",
+    "section_pattern": "^/ip route$",
+    "dst_pattern": "dst-address=([^\\s]+)",
+    "gateway_pattern": "(?<!check-)gateway=\\s*([^\\s]+)",
+    "comment_pattern": "comment=([^\\s]+)",
+    "disabled_pattern": "disabled=(yes|no)",
+    "route_pattern": "^add.*dst-address=([\\d\\.\\/]+).*gateway=([^\\s]+)",
+    "default_route_pattern": "^add.*dst-address=0\\.0\\.0\\.0/0.*gateway=([^\\s]+)"
   },
 
   "bgp_extraction_rules": {

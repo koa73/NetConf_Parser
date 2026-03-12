@@ -47,7 +47,30 @@
   ],
   
   "default_device_type": "router_or_switch",
-  
+
+  "model_fallback_rules": [
+    {
+      "description": "Cisco NX-OS Nexus 9000",
+      "conditions": {"all": ["boot nxos"], "any": ["n9000", "9.3"]},
+      "model": "Nexus 9000"
+    },
+    {
+      "description": "Cisco NX-OS Nexus 7000",
+      "conditions": {"all": ["boot nxos", "n7000"]},
+      "model": "Nexus 5000/6000"
+    },
+    {
+      "description": "Cisco NX-OS Nexus 5000",
+      "conditions": {"all": ["boot nxos", "n5000"]},
+      "model": "Nexus 5000"
+    },
+    {
+      "description": "Cisco ASA Firewall",
+      "conditions": {"any": ["asa", ": saved"]},
+      "model": "ASA (Firewall)"
+    }
+  ],
+
   "network_extraction_rules": {
     "interfaces": {
       "start": "^interface\\s+([\\w\\/\\-\\.]+)",
@@ -89,7 +112,14 @@
     "ntp_server_pattern": "^\\s*ntp server\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)",
     "snmp_server_pattern": "^\\s*snmp-server host\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)"
   },
-  
+
+  "routing_extraction_rules": {
+    "enabled": true,
+    "format": "static_route",
+    "static_route_pattern": "^ip route\\s+(\\S+)\\s+(\\S+)\\s*(\\S+)?",
+    "default_route_pattern": "^ip route\\s+0\\.0\\.0\\.0\\s+0\\.0\\.0\\.0\\s+(\\S+)"
+  },
+
   "model_type_mapping": {
     "WS-C2960": "switch",
     "WS-C2960S": "switch",

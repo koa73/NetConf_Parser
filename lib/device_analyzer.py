@@ -107,46 +107,34 @@ class NetworkDevice:
         return "unknown"
 
     def _extract_model_with_fallback(self, patterns: List[Dict], vendor: str) -> str:
-        """Извлекает модель с fallback-логикой для конкретных вендоров."""
+        """Извлекает модель с fallback-логикой из шаблона JSON."""
         model = self._extract_with_pattern(patterns)
         if model != "unknown":
             return model
 
-        # Fallback для специфических вендоров
-        if vendor == "Cisco":
-            if "boot nxos" in self.content_lower:
-                if "n9000" in self.content_lower or "9.3" in self.content_lower:
-                    return "Nexus 9000"
-                elif "n7000" in self.content_lower:
-                    return "Nexus 5000/6000"
-                elif "n5000" in self.content_lower:
-                    return "Nexus 5000"
-            if "asa" in self.content_lower or ": saved" in self.content_lower:
-                return "ASA (Firewall)"
-
-        elif vendor == "Juniper":
-            if "qfx" in self.content_lower or "evpn" in self.content_lower or "vxlan" in self.content_lower:
-                return "QFX Series (EVPN/VXLAN Switch)"
-            elif "ex" in self.content_lower or "ethernet-switching" in self.content_lower:
-                return "EX Series (Switch)"
-            elif "srx" in self.content_lower or "security {" in self.content_lower:
-                return "SRX Series (Firewall)"
-            elif "mx" in self.content_lower or "mpls" in self.content_lower:
-                return "MX Series (Router)"
-
-        elif vendor == "Huawei":
-            if "ce6881" in self.content_lower:
-                return "CE6881-48S6CQ"
-            elif "ce68" in self.content_lower or "ce88" in self.content_lower:
-                return "CE Series (Data Center Switch)"
-            elif "ne40" in self.content_lower or "ne80" in self.content_lower:
-                return "NE Series (Carrier Router)"
-            elif "s57" in self.content_lower or "s67" in self.content_lower:
-                return "S Series (Enterprise Switch)"
-            elif "ma56" in self.content_lower or "gpon" in self.content_lower:
-                return "MA5600/MA5800 Series (OLT)"
-            elif "firewall" in self.content_lower or "security-policy" in self.content_lower:
-                return "USG Series (Firewall)"
+        # Fallback-логика теперь определяется в JSON-шаблонах через model_fallback_rules
+        # Ищем шаблон для текущего вендора и применяем fallback-правила
+        vendor_pattern = next((p for p in self.vendor_patterns if p["vendor"] == vendor), None)
+        if vendor_pattern and "model_fallback_rules" in vendor_pattern:
+            for rule in vendor_pattern["model_fallback_rules"]:
+                conditions = rule.get("conditions", {})
+                matched = False
+                
+                # Проверка условия "all" (все паттерны должны совпасть)
+                if "all" in conditions:
+                    matched = all(pat.lower() in self.content_lower for pat in conditions["all"])
+                
+                # Проверка условия "any" (хотя бы один паттерн должен совпасть)
+                if "any" in conditions:
+                    any_matched = any(pat.lower() in self.content_lower for pat in conditions["any"])
+                    matched = matched and any_matched if "all" in conditions else any_matched
+                
+                # Если условий нет, считаем правило неприменимым
+                if not conditions:
+                    continue
+                
+                if matched:
+                    return rule.get("model", "unknown")
 
         return "unknown"
 
@@ -170,132 +158,22 @@ class NetworkDevice:
         return best_type
 
     def _extract_networks_and_vlans(self, rules: Dict) -> Dict[str, Any]:
-        """Извлекает сети и VLAN согласно правилам шаблона."""
+        """Извлекает сети и VLAN согласно правилам шаблона.
+        
+        Использует универсальный метод _extract_interfaces() для извлечения сетей,
+        что исключает дублирование логики с _extract_all_ip_interfaces().
+        """
         result = {
             "routing_networks": [],
             "total_vlans": 0,
             "active_vlans": [],
-            "all_vlans": set()
+            "all_vlans": []
         }
 
-        # Извлечение интерфейсов с IP
-        if "interfaces" in rules:
-            # Проверка на формат MikroTik (секционный: /ip address ... add address=X interface=Y)
-            is_mikrotik_format = "section_header" in rules["interfaces"]
-            
-            if is_mikrotik_format:
-                # Обработка формата MikroTik
-                section_header = rules["interfaces"].get("section_header", "")
-                ip_pattern = rules["interfaces"].get("ip_pattern", "")
-                iface_pattern = rules["interfaces"].get("interface_pattern", "")
-                disable_pattern = rules["interfaces"].get("disable_pattern", "")
-                
-                in_section = False
-                section_line = ""
-                
-                for line in self.content_lines:
-                    # Проверка на заголовок секции
-                    if re.search(section_header, line, re.IGNORECASE):
-                        in_section = True
-                        section_line = line
-                        continue
-                    
-                    # Если в другой секции - пропускаем
-                    if in_section and line.startswith("/"):
-                        in_section = False
-                        continue
-                    
-                    if not in_section:
-                        continue
-                    
-                    # Проверка на отключённый интерфейс
-                    if disable_pattern and re.search(disable_pattern, line, re.IGNORECASE):
-                        continue
-                    
-                    # Проверка на строку добавления адреса
-                    if not line.startswith("add"):
-                        continue
-                    
-                    ip_match = re.search(ip_pattern, line, re.IGNORECASE)
-                    iface_match = re.search(iface_pattern, line, re.IGNORECASE)
-                    
-                    if ip_match and iface_match:
-                        try:
-                            interface_ip = ip_match.group(1)
-                        except IndexError:
-                            interface_ip = ip_match.group(1)
-                        
-                        interface_name = iface_match.group(1).strip()
-                        
-                        result["routing_networks"].append({
-                            "interface": interface_name,
-                            "network": interface_ip
-                        })
-            elif "interface_pattern" in rules["interfaces"]:
-                # Обработка однострочного формата (address=X interface=Y в одной строке)
-                ip_pattern = rules["interfaces"].get("ip_pattern", "")
-                iface_pattern = rules["interfaces"].get("interface_pattern", "")
-                disable_pattern = rules["interfaces"].get("disable_pattern", "")
-                
-                for line in self.content_lines:
-                    # Проверка на отключённый интерфейс
-                    if disable_pattern and re.search(disable_pattern, line, re.IGNORECASE):
-                        continue
-                    
-                    ip_match = re.search(ip_pattern, line, re.IGNORECASE)
-                    iface_match = re.search(iface_pattern, line, re.IGNORECASE)
-                    
-                    if ip_match and iface_match:
-                        try:
-                            interface_ip = ip_match.group(1)
-                            # Нормализация: добавляем маску если есть
-                            if "/" not in interface_ip and len(ip_match.groups()) >= 2:
-                                interface_ip = f"{ip_match.group(1)}/{ip_match.group(2)}"
-                        except IndexError:
-                            interface_ip = ip_match.group(1)
-                        
-                        interface_name = iface_match.group(1).strip()
-                        
-                        result["routing_networks"].append({
-                            "interface": interface_name,
-                            "network": interface_ip
-                        })
-            else:
-                # Стандартный формат (многострочный: interface X ... ip address Y)
-                current_interface = None
-                interface_ip = None
-                is_disabled = False
-
-                for line in self.content_lines:
-                    iface_match = re.search(rules["interfaces"]["start"], line, re.IGNORECASE)
-                    if iface_match:
-                        if current_interface and interface_ip and not is_disabled:
-                            result["routing_networks"].append({
-                                "interface": current_interface,
-                                "network": interface_ip
-                            })
-                        current_interface = iface_match.group(1).strip()
-                        interface_ip = None
-                        is_disabled = False
-                        continue
-
-                    if current_interface and "ip_pattern" in rules["interfaces"]:
-                        ip_match = re.search(rules["interfaces"]["ip_pattern"], line, re.IGNORECASE)
-                        if ip_match:
-                            try:
-                                interface_ip = f"{ip_match.group(1)}/{ip_match.group(2)}"
-                            except IndexError:
-                                interface_ip = ip_match.group(1)
-
-                    if current_interface and "disable_pattern" in rules["interfaces"]:
-                        if re.search(rules["interfaces"]["disable_pattern"], line, re.IGNORECASE):
-                            is_disabled = True
-
-                if current_interface and interface_ip and not is_disabled:
-                    result["routing_networks"].append({
-                        "interface": current_interface,
-                        "network": interface_ip
-                    })
+        # Извлечение интерфейсов с IP через универсальный метод
+        # Это заменяет сложную логику с определением формата (MikroTik/однострочный/многострочный)
+        routing_networks, _ = self._extract_interfaces(extract_all=False)
+        result["routing_networks"] = routing_networks
 
         # Извлечение VLAN
         if "vlans" in rules:
@@ -721,72 +599,112 @@ class NetworkDevice:
         return result
 
     def _extract_routing_paths(self, rules: Dict) -> List[Dict[str, Any]]:
-        """Извлекает маршруты из конфигурации (для MikroTik и других вендоров)."""
+        """Извлекает маршруты из конфигурации на основе правил из шаблона.
+        
+        Поддерживает форматы:
+        - MikroTik: секционный формат с /ip route и add dst-address=X gateway=Y
+        - Cisco/Huawei: статические маршруты в формате ip route X Y Z
+        """
+        routes = []
+        
+        # Получаем правила из шаблона
+        section_pattern = rules.get("section_pattern")
+        route_pattern = rules.get("route_pattern")
+        dst_pattern = rules.get("dst_pattern", r"dst-address=([^\s]+)")
+        gateway_pattern = rules.get("gateway_pattern", r"(?<!check-)gateway=\s*([^\s]+)")
+        comment_pattern = rules.get("comment_pattern", r"comment=([^\s]+)")
+        disabled_pattern = rules.get("disabled_pattern", r"disabled=(yes|no)")
+        static_route_pattern = rules.get("static_route_pattern")  # Для Cisco/Huawei
+        
+        # Определяем формат по наличию section_pattern (MikroTik) или static_route_pattern (Cisco/Huawei)
+        is_mikrotik_format = section_pattern is not None
+        is_static_route_format = static_route_pattern is not None
+        
+        if is_mikrotik_format:
+            # MikroTik формат: /ip route ... add dst-address=X gateway=Y
+            routes.extend(self._extract_mikrotik_routes(
+                section_pattern=section_pattern,
+                dst_pattern=dst_pattern,
+                gateway_pattern=gateway_pattern,
+                comment_pattern=comment_pattern,
+                disabled_pattern=disabled_pattern
+            ))
+        elif is_static_route_format:
+            # Cisco/Huawei формат: ip route X Y Z
+            routes.extend(self._extract_static_routes(static_route_pattern))
+        else:
+            # Fallback: пытаемся определить формат автоматически
+            if any(line.strip() == "/ip route" for line in self.content_lines):
+                routes.extend(self._extract_mikrotik_routes(
+                    section_pattern=r"^/ip route$",
+                    dst_pattern=dst_pattern,
+                    gateway_pattern=gateway_pattern,
+                    comment_pattern=comment_pattern,
+                    disabled_pattern=disabled_pattern
+                ))
+        
+        return routes
+
+    def _extract_mikrotik_routes(self, section_pattern: str, dst_pattern: str,
+                                  gateway_pattern: str, comment_pattern: str,
+                                  disabled_pattern: str) -> List[Dict[str, Any]]:
+        """Извлекает маршруты в формате MikroTik."""
         routes = []
         in_route_section = False
-        
+
         # Объединяем многострочные команды (с продолжением \)
         joined_lines = []
         current_line = ""
-        
+
         for line in self.content_lines:
             if current_line:
                 current_line += " " + line.lstrip()
             else:
                 current_line = line
-            
-            # Если строка заканчивается на \, продолжаем
+
             if current_line.rstrip().endswith("\\"):
-                current_line = current_line.rstrip()[:-1]  # Удаляем \
+                current_line = current_line.rstrip()[:-1]
             else:
                 joined_lines.append(current_line)
                 current_line = ""
-        
-        # Обрабатываем последнюю строку
+
         if current_line:
             joined_lines.append(current_line)
-        
+
         for line in joined_lines:
-            # Проверка на секцию /ip route (MikroTik формат)
-            if line.strip() == "/ip route":
+            if re.search(section_pattern, line, re.IGNORECASE):
                 in_route_section = True
                 continue
-            
-            # Выход из секции при переходе к другой
+
             if in_route_section and line.startswith("/"):
                 in_route_section = False
                 continue
-            
+
             if not in_route_section:
                 continue
-            
-            # Пропускаем строки, не начинающиеся с "add"
+
             if not line.strip().startswith("add"):
                 continue
-            
-            # Извлечение dst-address и gateway
-            dst_match = re.search(r"dst-address=([^\s]+)", line)
-            # Извлекаем gateway, но не check-gateway (с учётом возможных пробелов после =)
-            gateway_match = re.search(r"(?<!check-)gateway=\s*([^\s]+)", line)
-            comment_match = re.search(r"comment=([^\s]+)", line)
-            disabled_match = re.search(r"disabled=(yes|no)", line)
-            
+
+            dst_match = re.search(dst_pattern, line)
+            gateway_match = re.search(gateway_pattern, line)
+            comment_match = re.search(comment_pattern, line) if comment_pattern else None
+            disabled_match = re.search(disabled_pattern, line) if disabled_pattern else None
+
             if dst_match and gateway_match:
                 dst_address = dst_match.group(1)
                 gateway = gateway_match.group(1)
-                comment = comment_match.group(1).strip('"') if comment_match else ""
-                disabled = disabled_match.group(1) == "yes" if disabled_match else False
-                
-                # Определяем интерфейс из gateway (если gateway не IP, а имя интерфейса)
+                comment = comment_match.group(1).strip('"') if comment_match and comment_match.group(1) else ""
+                disabled = disabled_match.group(1) == "yes" if disabled_match and disabled_match.group(1) else False
+
                 interface = None
                 if not re.match(r"^\d+\.\d+\.\d+\.\d+$", gateway):
                     interface = gateway
                 else:
-                    # Пытаемся найти vrf-interface
                     vrf_intf_match = re.search(r"vrf-interface=([^\s]+)", line)
                     if vrf_intf_match:
                         interface = vrf_intf_match.group(1)
-                
+
                 routes.append({
                     "dst_address": dst_address,
                     "gateway": gateway,
@@ -794,68 +712,106 @@ class NetworkDevice:
                     "comment": comment,
                     "disabled": disabled
                 })
+
+        return routes
+
+    def _extract_static_routes(self, static_route_pattern: str) -> List[Dict[str, Any]]:
+        """Извлекает статические маршруты в формате Cisco/Huawei."""
+        routes = []
+        
+        for line in self.content_lines:
+            match = re.search(static_route_pattern, line, re.IGNORECASE)
+            if match:
+                groups = match.groups()
+                route_data = {
+                    "dst_address": groups[0] if len(groups) > 0 else "",
+                    "gateway": groups[1] if len(groups) > 1 else "",
+                    "interface": groups[2] if len(groups) > 2 else None,
+                    "comment": "",
+                    "disabled": False
+                }
+                routes.append(route_data)
         
         return routes
 
-    def _extract_all_ip_interfaces(self) -> List[Dict[str, str]]:
-        """Извлекает все интерфейсы с IP адресами из конфигурации."""
-        interfaces = []
+    def _extract_interfaces(self, extract_all: bool = True) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+        """
+        Универсальный метод извлечения интерфейсов с IP адресами.
+        
+        Args:
+            extract_all: Если True, извлекает все интерфейсы для all_ip_interfaces.
+                        Если False, извлекает только routing networks.
+        
+        Returns:
+            Кортеж (routing_networks, all_ip_interfaces)
+        """
+        routing_networks = []
+        all_interfaces = []
         current_interface = None
         is_shutdown = False
 
-        # Проверка на формат MikroTik (секционный: /ip address ... add address=X interface=Y)
+        # Определение формата конфигурации
         is_mikrotik = any(line.startswith("/ip address") for line in self.content_lines)
-        
+
         if is_mikrotik:
-            # Обработка формата MikroTik
+            # Обработка формата MikroTik (секционный: /ip address ... add address=X interface=Y)
             in_section = False
-            
+
             for line in self.content_lines:
                 # Проверка на заголовок секции
                 if line.strip() == "/ip address":
                     in_section = True
                     continue
-                
+
                 # Если в другой секции - пропускаем
                 if in_section and line.startswith("/"):
                     in_section = False
                     continue
-                
+
                 if not in_section:
                     continue
-                
+
                 # Проверка на строку добавления адреса
                 if not line.startswith("add"):
                     continue
-                
+
                 # Проверка на отключённый интерфейс
                 if "disabled=yes" in line:
                     continue
-                
+
                 # Извлечение address=X и interface=Y
                 addr_match = re.search(r"address=([^\s]+)", line)
                 intf_match = re.search(r"interface=([^\s]+)", line)
-                
+
                 if addr_match and intf_match:
                     address = addr_match.group(1)
                     interface = intf_match.group(1)
-                    
+
                     # Разбор address=IP/mask
                     if "/" in address:
                         ip, mask = address.split("/", 1)
                     else:
                         ip = address
                         mask = "32"
-                    
+
                     # Извлечение description если есть
                     desc_match = re.search(r"comment=([^\s]+)", line)
                     description = desc_match.group(1).strip('"') if desc_match else ""
-                    
-                    interfaces.append({
+
+                    intf_data = {
                         'interface': interface,
                         'ip': ip,
                         'mask': mask,
                         'description': description
+                    }
+
+                    if extract_all:
+                        all_interfaces.append(intf_data)
+                    
+                    # Для routing networks используем те же данные
+                    routing_networks.append({
+                        'interface': interface,
+                        'network': f"{ip}/{mask}"
                     })
         else:
             # Стандартный формат (Cisco/Huawei: interface X ... ip address Y)
@@ -865,11 +821,19 @@ class NetworkDevice:
                 if intf_match:
                     # Сохраняем предыдущий интерфейс если был IP
                     if current_interface and not is_shutdown and current_interface.get('ip'):
-                        interfaces.append({
+                        intf_data = {
                             'interface': current_interface['name'],
-                            'ip': current_interface.get('ip'),
-                            'mask': current_interface.get('mask'),
+                            'ip': current_interface['ip'],
+                            'mask': current_interface['mask'],
                             'description': current_interface.get('description', '')
+                        }
+                        
+                        if extract_all:
+                            all_interfaces.append(intf_data)
+                        
+                        routing_networks.append({
+                            'interface': current_interface['name'],
+                            'network': f"{current_interface['ip']}/{current_interface['mask']}"
                         })
 
                     current_interface = {
@@ -904,14 +868,27 @@ class NetworkDevice:
 
             # Последний интерфейс
             if current_interface and not is_shutdown and current_interface.get('ip'):
-                interfaces.append({
+                intf_data = {
                     'interface': current_interface['name'],
                     'ip': current_interface['ip'],
                     'mask': current_interface['mask'],
                     'description': current_interface.get('description', '')
+                }
+                
+                if extract_all:
+                    all_interfaces.append(intf_data)
+                
+                routing_networks.append({
+                    'interface': current_interface['name'],
+                    'network': f"{current_interface['ip']}/{current_interface['mask']}"
                 })
 
-        return interfaces
+        return routing_networks, all_interfaces
+
+    def _extract_all_ip_interfaces(self) -> List[Dict[str, str]]:
+        """Извлекает все интерфейсы с IP адресами из конфигурации (обратная совместимость)."""
+        _, all_interfaces = self._extract_interfaces(extract_all=True)
+        return all_interfaces
 
     def to_dict(self) -> Dict[str, Any]:
         """Возвращает результаты анализа в виде словаря."""
