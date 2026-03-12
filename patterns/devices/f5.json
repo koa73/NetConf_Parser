@@ -1,6 +1,6 @@
 {
   "vendor": "F5",
-  "version": "1.1",
+  "version": "1.2",
   "vendor_signatures": [
     "^#TMSH-VERSION:",
     "^ltm virtual",
@@ -42,5 +42,20 @@
       "all_pattern": "^net vlan\\s+([^\\s]+)",
       "active_pattern": "^net vlan\\s+([^\\s]+)"
     }
+  },
+
+  "lldp_extraction_rules": {
+    "enabled": true,
+    "lldp_run_pattern": "^ltm global-settings lldp\\s+\\{[^}]*enabled\\s+yes",
+    "neighbor_description_pattern": "^\\s+description\\s+(.+)",
+    "lldp_agent_pattern": "^ltm global-settings lldp",
+    "chassis_id_pattern": "chassis-id",
+    "port_id_pattern": "port-id"
+  },
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "disabled\\s+yes",
+    "no_shutdown_pattern": "enabled\\s+yes"
   }
 }

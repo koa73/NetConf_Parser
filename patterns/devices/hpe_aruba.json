@@ -1,6 +1,6 @@
 {
   "vendor": "HPE/Aruba (Comware)",
-  "version": "2.0",
+  "version": "2.1",
   "description": "Оптимизированный шаблон для коммутаторов HPE/Aruba на базе Comware 7 (5510, 5130, 5700 серии)",
   
   "vendor_signatures": [
@@ -95,7 +95,13 @@
     "neighbor_pattern": "^\\s*([\\w]+\\d+/\\d+/\\d+)\\s+([\\w\\-\\.]+)\\s+([\\da-fA-F-]+)\\s+([\\w\\-/]+)",
     "global_enable_pattern": "^lldp global enable"
   },
-  
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "^\\s*shutdown\\s*$",
+    "no_shutdown_pattern": "^\\s*undo\\s+shutdown\\s*$"
+  },
+
   "irf_extraction_rules": {
     "enabled": true,
     "member_pattern": "^irf member\\s+(\\d+)(?:\\s+priority\\s+(\\d+))?",

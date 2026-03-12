@@ -81,7 +81,13 @@
     "neighbor_pattern": "^\\s*Local Interface\\s*:\\s*([\\w\\s\\d/]+)\\s*\\n\\s*Chassis ID\\s*:\\s*([\\da-fA-F-]+)\\s*\\n\\s*Port ID\\s*:\\s*([\\w\\-/]+)\\s*\\n\\s*System Name\\s*:\\s*([\\w\\-\\.]+)",
     "system_name_pattern": "^\\s*System Name\\s*:\\s*([\\w\\-\\.]+)"
   },
-  
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "^\\s*shutdown\\s*$",
+    "no_shutdown_pattern": "^\\s*no\\s+shutdown\\s*$"
+  },
+
   "ring_protection_rules": {
     "enabled": true,
     "group_pattern": "^ringv2 protect group(\\d+)"

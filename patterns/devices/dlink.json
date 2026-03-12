@@ -89,7 +89,13 @@
     "neighbor_pattern": "^\\s*(gi[\\d/]+)\\s+([\\da-fA-F:]+)\\s+([\\w\\-/]+)\\s+([\\w\\-\\.]+)",
     "system_name_pattern": "^\\s*System Name\\s*:\\s*([\\w\\-\\.]+)"
   },
-  
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "^\\s*shutdown\\s*$",
+    "no_shutdown_pattern": "^\\s*no\\s+shutdown\\s*$"
+  },
+
   "model_type_mapping": {
     "MES3300": "switch",
     "MES3710P": "switch",

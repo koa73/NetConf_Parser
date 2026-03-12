@@ -35,5 +35,20 @@
       "all_pattern": "vlan\\s+(\\d+)",
       "active_pattern": "interface vlan\\s+(\\d+)"
     }
+  },
+
+  "lldp_extraction_rules": {
+    "enabled": true,
+    "lldp_run_pattern": "^lldp run",
+    "neighbor_description_pattern": "^\\s+lldp description\\s+(.+)",
+    "lldp_agent_pattern": "^\\s+lldp tlv-select",
+    "chassis_id_pattern": "lldp tlv-select.*chassis-id",
+    "port_id_pattern": "lldp tlv-select.*port-id"
+  },
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "^\\s*disable\\s*$",
+    "no_shutdown_pattern": "^\\s*no\\s+disable\\s*$"
   }
 }

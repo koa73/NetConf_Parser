@@ -91,7 +91,13 @@
     "neighbor_pattern": "^\\s*([\\w]+\\s*\\d+/\\d+)\\s+([\\w\\.]+)\\s+([\\w\\-/]+)\\s+([\\w\\-\\.]+)",
     "system_name_pattern": "^System Name\\s*:\\s*([\\w\\-\\.]+)"
   },
-  
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "^\\s*shutdown\\s*$",
+    "no_shutdown_pattern": "^\\s*no\\s+shutdown\\s*$"
+  },
+
   "model_type_mapping": {
     "QSW-3310": "switch",
     "QSW-6910": "switch",

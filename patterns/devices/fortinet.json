@@ -33,5 +33,20 @@
       "all_pattern": "^edit\\s+\"vlan(\\d+)\"",
       "active_pattern": "^edit\\s+\"vlan(\\d+)\""
     }
+  },
+
+  "lldp_extraction_rules": {
+    "enabled": true,
+    "lldp_run_pattern": "^config system lldp",
+    "neighbor_description_pattern": "^\\s+set description\\s+(.+)",
+    "lldp_agent_pattern": "^config system lldp",
+    "chassis_id_pattern": "set chassis-id",
+    "port_id_pattern": "set port-id"
+  },
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "set status down",
+    "no_shutdown_pattern": "set status up"
   }
 }

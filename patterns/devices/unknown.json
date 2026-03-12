@@ -79,7 +79,13 @@
     "neighbor_pattern": "^\\s*Local Interface\\s*:\\s*([\\w\\s\\d/]+)\\s*\\n\\s*Chassis ID\\s*:\\s*([\\da-fA-F-]+)\\s*\\n\\s*System Name\\s*:\\s*([\\w\\-\\.]+)",
     "system_name_pattern": "^\\s*System Name\\s*:\\s*([\\w\\-\\.]+)"
   },
-  
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "^\\s*shutdown\\s*$",
+    "no_shutdown_pattern": "^\\s*no\\s+shutdown\\s*$"
+  },
+
   "port_security_rules": {
     "enabled": true,
     "max_pattern": "^\\s*port-security maximum\\s+(\\d+)",

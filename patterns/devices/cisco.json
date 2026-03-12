@@ -1,6 +1,6 @@
 {
   "vendor": "Cisco",
-  "version": "2.0",
+  "version": "2.1",
   "description": "Оптимизированный шаблон для оборудования Cisco (IOS, IOS-XE, NX-OS, ASA)",
   
   "vendor_signatures": [
@@ -136,6 +136,21 @@
     "default_gateway_pattern": "^\\s*ip default-gateway\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)",
     "ntp_server_pattern": "^\\s*ntp server\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)",
     "snmp_server_pattern": "^\\s*snmp-server host\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)"
+  },
+
+  "lldp_extraction_rules": {
+    "enabled": true,
+    "lldp_run_pattern": "^lldp run",
+    "neighbor_description_pattern": "^\\s+description\\s+(.+)",
+    "lldp_agent_pattern": "^\\s+lldp tlv-select",
+    "chassis_id_pattern": "lldp tlv-select.*chassis-id",
+    "port_id_pattern": "lldp tlv-select.*port-id"
+  },
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "^\\s*shutdown\\s*$",
+    "no_shutdown_pattern": "^\\s*no\\s+shutdown\\s*$"
   },
 
   "routing_extraction_rules": {

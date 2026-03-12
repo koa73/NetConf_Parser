@@ -1,6 +1,6 @@
 {
   "vendor": "MikroTik",
-  "version": "2.1",
+  "version": "2.2",
   "description": "Шаблон для MikroTik RouterOS с поддержкой извлечения имён, моделей, маршрутов и интерфейсов",
 
   "vendor_signatures": [
@@ -110,5 +110,20 @@
     "CRS326": "switch",
     "CRS328": "switch",
     "CRS354": "switch"
+  },
+
+  "lldp_extraction_rules": {
+    "enabled": true,
+    "lldp_run_pattern": "^/lldp set enabled=yes",
+    "neighbor_description_pattern": "^/lldp neighbors set.*comment=([^\\s]+)",
+    "lldp_agent_pattern": "^/lldp interface",
+    "chassis_id_pattern": "chassis-id=([^\\s]+)",
+    "port_id_pattern": "port-id=([^\\s]+)"
+  },
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "disabled=yes",
+    "no_shutdown_pattern": "disabled=no"
   }
 }

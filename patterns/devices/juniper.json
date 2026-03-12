@@ -1,6 +1,6 @@
 {
   "vendor": "Juniper",
-  "version": "1.1",
+  "version": "1.2",
   "vendor_signatures": [
     "^## Last commit:",
     "^set version \\d"
@@ -63,5 +63,20 @@
       "all_pattern": "(?:vlan-id|set vlans \\S+ vlan-id)\\s+(\\d+)",
       "active_pattern": "(?:unit \\d+|encapsulation dot1q)\\s+vid\\s+(\\d+)"
     }
+  },
+
+  "lldp_extraction_rules": {
+    "enabled": true,
+    "lldp_run_pattern": "^set protocols lldp interface",
+    "neighbor_description_pattern": "^set protocols lldp interface.*description\\s+(.+)",
+    "lldp_agent_pattern": "^set protocols lldp",
+    "chassis_id_pattern": "lldp interface.*chassis-id",
+    "port_id_pattern": "lldp interface.*port-id"
+  },
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "disable",
+    "no_shutdown_pattern": "active"
   }
 }

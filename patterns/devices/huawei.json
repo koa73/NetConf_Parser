@@ -1,6 +1,6 @@
 {
   "vendor": "Huawei",
-  "version": "1.2",
+  "version": "1.3",
   "vendor_signatures": [
     "^\\s*# Versatile Routing Platform Software",
     "^\\s*# VRP \\(R\\) software, Version",
@@ -89,5 +89,20 @@
     "format": "static_route",
     "static_route_pattern": "^ip route-static\\s+(\\S+)\\s+(\\S+)\\s*(\\S+)?",
     "default_route_pattern": "^ip route-static\\s+0\\.0\\.0\\.0\\s+0\\.0\\.0\\.0\\s+(\\S+)"
+  },
+
+  "lldp_extraction_rules": {
+    "enabled": true,
+    "lldp_run_pattern": "^lldp enable",
+    "neighbor_description_pattern": "^\\s+description\\s+(.+)",
+    "lldp_agent_pattern": "^\\s+lldp admin-status",
+    "chassis_id_pattern": "lldp tlv-enable.*chassis-id",
+    "port_id_pattern": "lldp tlv-enable.*port-id"
+  },
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "^\\s*shutdown\\s*$",
+    "no_shutdown_pattern": "^\\s*undo\\s+shutdown\\s*$"
   }
 }

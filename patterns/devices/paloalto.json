@@ -33,5 +33,20 @@
       "all_pattern": "set network interface vlan vlan(\\d+)",
       "active_pattern": "set network interface vlan vlan(\\d+)"
     }
+  },
+
+  "lldp_extraction_rules": {
+    "enabled": true,
+    "lldp_run_pattern": "^set deviceconfig setting lldp enabled yes",
+    "neighbor_description_pattern": "^set network profile lldp.*description\\s+(.+)",
+    "lldp_agent_pattern": "^set deviceconfig setting lldp",
+    "chassis_id_pattern": "chassis-id",
+    "port_id_pattern": "port-id"
+  },
+
+  "interface_status_rules": {
+    "enabled": true,
+    "shutdown_pattern": "state no",
+    "no_shutdown_pattern": "state yes"
   }
 }
