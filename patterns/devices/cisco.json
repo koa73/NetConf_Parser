@@ -1,7 +1,7 @@
 {
   "vendor": "Cisco",
-  "version": "2.1",
-  "description": "Оптимизированный шаблон для оборудования Cisco (IOS, IOS-XE, NX-OS, ASA)",
+  "version": "2.3",
+  "description": "Оптимизированный шаблон для оборудования Cisco (IOS, IOS-XE, NX-OS, ASA) с поддержкой VRF, IPSec, GRE, Voice, VPDN, CUBE",
   
   "vendor_signatures": [
     "Cisco IOS Software",
@@ -9,14 +9,26 @@
     "Cisco IOS-XE software",
     "cisco .+ processor",
     "Processor board ID",
-    "Copyright (c) 1986-20[0-9][0-9] by Cisco Systems"
+    "Copyright (c) 1986-20[0-9][0-9] by Cisco Systems",
+    "^version 1[0-5]\\.",
+    "^hostname ",
+    "^crypto isakmp",
+    "^crypto ipsec",
+    "^voice-card",
+    "^vpdn enable"
   ],
   
   "detect_patterns": [
     "^version \\d+\\.\\d+",
     "^interface [\\w\\/\\-\\.]+",
     "^hostname [\\w\\-]+",
-    "^\\s*version \\d+\\.\\d+\\("
+    "^\\s*version \\d+\\.\\d+\\(",
+    "^crypto isakmp",
+    "^crypto ipsec",
+    "^voice-card",
+    "^vpdn enable",
+    "^vtp domain",
+    "^spanning-tree mode"
   ],
   
   "name_patterns": [
@@ -29,6 +41,9 @@
   "model_patterns": [
     {"pattern": "^cisco\\s+([\\w\\-]+)\\s+\\([^)]+\\)\\s+processor", "group": 1, "priority": 100},
     {"pattern": "^Model Number\\s*:\\s*([\\w\\-]+)", "group": 1, "priority": 95},
+    {"pattern": "license udi pid (CISCO\\d+[A-Z\\-]+)", "group": 1, "priority": 95},
+    {"pattern": "license udi pid (C[\\d]+[A-Z\\-]+)", "group": 1, "priority": 92},
+    {"pattern": "license udi pid (C3900-[A-Z\\d]+)", "group": 1, "priority": 92},
     {"pattern": "^\\s*Model\\s+Ports\\s+Model", "group": 0, "fallback_pattern": "^\\*?\\s*\\d+\\s+\\d+\\s+([\\w\\-]+)", "fallback_group": 1, "priority": 90},
     {"pattern": "cisco\\s+(C[\\d]+[A-Z\\-]*)", "group": 1, "priority": 85},
     {"pattern": "(WS-C[\\d]+[A-Z\\-]*)", "group": 1, "priority": 85},
@@ -41,16 +56,66 @@
 
   "type_rules": [
     {
+      "description": "Cisco Catalyst Core Switch (4500/6500)",
+      "any": ["ws-c45", "ws-c65", "supervisor engine", "vtp domain", "spanning-tree mode pvst", "power redundancy-mode"],
+      "type": "switch",
+      "score": 95
+    },
+    {
       "description": "Cisco Catalyst / Nexus switches",
       "any": ["C9500", "C9400", "C9300", "C9200", "WS-C", "C2960", "C3750", "C3650", "Catalyst", "Nexus", "NX-OS", "n9000", "n7000", "n5000", "n3000", "feature vpc", "boot nxos"],
       "type": "switch",
-      "score": 95
+      "score": 92
     },
     {
       "description": "Cisco ASA Firewall",
       "any": ["ASA", "nameif", "security-level", "access-group", ": Saved"],
       "type": "firewall",
       "score": 90
+    },
+    {
+      "description": "Cisco CUBE (Session Border Controller)",
+      "all": ["voice service voip", "allow-connections h323 to sip"],
+      "any": ["bind control source-interface", "dial-peer voice"],
+      "type": "router",
+      "score": 89
+    },
+    {
+      "description": "Cisco ISR 4000 Router",
+      "any": ["ISR4", "ISR 4", "c1100", "c4000", "platform punt-keepalive"],
+      "type": "router",
+      "score": 88
+    },
+    {
+      "description": "Cisco 800 Series Router",
+      "any": ["CISCO8", "C881", "C887", "C891", "C892", "C897", "CISCO861"],
+      "type": "router",
+      "score": 87
+    },
+    {
+      "description": "Cisco 2800/3800 Series Router",
+      "any": ["CISCO28", "CISCO38", "C2801", "C2811", "C2821", "C2851", "C3825", "C3845"],
+      "type": "router",
+      "score": 86
+    },
+    {
+      "description": "Cisco 3900/4000 Series Router",
+      "any": ["C3900", "C3925", "C3945", "C3925E", "C3945E", "C4000"],
+      "type": "router",
+      "score": 86
+    },
+    {
+      "description": "Cisco Router (IPSec/VPN features)",
+      "all": ["crypto isakmp", "crypto ipsec"],
+      "any": ["crypto map", "transform-set", "tunnel source"],
+      "type": "router",
+      "score": 85
+    },
+    {
+      "description": "Cisco Router (Voice features)",
+      "any": ["voice-card", "dial-peer voice", "voice service voip", "vpdn enable"],
+      "type": "router",
+      "score": 85
     },
     {
       "description": "Cisco Router",
@@ -136,6 +201,46 @@
     "default_gateway_pattern": "^\\s*ip default-gateway\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)",
     "ntp_server_pattern": "^\\s*ntp server\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)",
     "snmp_server_pattern": "^\\s*snmp-server host\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)"
+  },
+
+  "vrf_extraction_rules": {
+    "enabled": true,
+    "vrf_definition_pattern": "^vrf definition\\s+(\\S+)",
+    "vrf_description_pattern": "^\\s+description\\s+(.+)",
+    "vrf_forwarding_pattern": "^\\s+ip vrf forwarding\\s+(\\S+)",
+    "ip_vrf_pattern": "^ip vrf\\s+(\\S+)"
+  },
+
+  "ipsec_extraction_rules": {
+    "enabled": true,
+    "isakmp_policy_pattern": "^crypto isakmp policy\\s+(\\d+)",
+    "isakmp_key_pattern": "^crypto isakmp key\\s+.*\\s+address\\s+(\\S+)",
+    "isakmp_profile_pattern": "^crypto isakmp profile\\s+(\\S+)",
+    "ipsec_transform_pattern": "^crypto ipsec transform-set\\s+(\\S+)",
+    "ipsec_profile_pattern": "^crypto ipsec profile\\s+(\\S+)"
+  },
+
+  "gre_tunnel_extraction_rules": {
+    "enabled": true,
+    "tunnel_interface_pattern": "^interface Tunnel(\\d+)",
+    "tunnel_source_pattern": "^\\s+tunnel source\\s+(\\S+)",
+    "tunnel_destination_pattern": "^\\s+tunnel destination\\s+(\\S+)",
+    "tunnel_mode_pattern": "^\\s+tunnel mode\\s+(\\S+)"
+  },
+
+  "voice_extraction_rules": {
+    "enabled": true,
+    "voice_card_pattern": "^voice-card\\s+(\\d+)",
+    "voice_service_pattern": "^voice service voip",
+    "dial_peer_pattern": "^dial-peer voice\\s+(\\d+)\\s+(\\S+)",
+    "sip_bind_pattern": "^\\s+bind (control|media) source-interface\\s+(\\S+)"
+  },
+
+  "vpdn_extraction_rules": {
+    "enabled": true,
+    "vpdn_enable_pattern": "^vpdn enable",
+    "vpdn_group_pattern": "^vpdn-group\\s+(\\S+)",
+    "virtual_template_pattern": "^\\s+virtual-template\\s+(\\d+)"
   },
 
   "lldp_extraction_rules": {

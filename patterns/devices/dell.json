@@ -1,10 +1,12 @@
 {
   "vendor": "Dell",
-  "version": "1.1",
+  "version": "1.2",
   "vendor_signatures": [
     "^! Dell Networking",
+    "^! Dell OS",
     "^boot system",
-    "^hostname [\\w\\-]+"
+    "Dell Force10",
+    "Dell Networks"
   ],
   "detect_patterns": [
     "^interface [\\w\\/\\-]+",
