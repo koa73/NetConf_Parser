@@ -137,9 +137,7 @@ class NetworkDevice:
     def _extract_model_with_fallback(self, patterns: List[Dict], vendor: str) -> str:
         """Извлекает модель с fallback-логикой из шаблона JSON."""
         model = self._extract_with_pattern(patterns)
-        if model != "unknown":
-            return model
-
+        
         # Fallback-логика теперь определяется в JSON-шаблонах через model_fallback_rules
         # Ищем шаблон для текущего вендора и применяем fallback-правила
         vendor_pattern = next((p for p in self.vendor_patterns if p["vendor"] == vendor), None)
@@ -147,24 +145,93 @@ class NetworkDevice:
             for rule in vendor_pattern["model_fallback_rules"]:
                 conditions = rule.get("conditions", {})
                 matched = False
-                
+
                 # Проверка условия "all" (все паттерны должны совпасть)
                 if "all" in conditions:
-                    matched = all(pat.lower() in self.content_lower for pat in conditions["all"])
-                
+                    matched = all(self._check_condition_pattern(pat) for pat in conditions["all"])
+
                 # Проверка условия "any" (хотя бы один паттерн должен совпасть)
                 if "any" in conditions:
-                    any_matched = any(pat.lower() in self.content_lower for pat in conditions["any"])
+                    any_matched = any(self._check_condition_pattern(pat) for pat in conditions["any"])
                     matched = matched and any_matched if "all" in conditions else any_matched
-                
+
                 # Если условий нет, считаем правило неприменимым
                 if not conditions:
                     continue
-                
+
                 if matched:
                     return rule.get("model", "unknown")
 
-        return "unknown"
+        # Если модель не извлечена, возвращаем unknown
+        if model == "unknown":
+            return model
+
+        # Если модель извлечена, нормализуем её
+        # (например, cat4500e-lanbase-mz → Catalyst 4500-E, CISCO2951/K9 → Cisco 2951)
+        normalized_model = self._normalize_model_name(model)
+        return normalized_model
+
+    def _check_condition_pattern(self, pattern: str) -> bool:
+        """
+        Проверяет условие паттерна.
+        
+        Если паттерн содержит regex-символы (.*, +, ?, ^, $), используется regex-поиск.
+        Иначе используется простой поиск подстроки.
+        """
+        # Символы, указывающие на regex-паттерн
+        regex_chars = ['.*', '.+', '+', '?', '^', '$', '\\d', '\\w', '\\s', '[', ']', '(', ')']
+        
+        is_regex = any(rc in pattern for rc in regex_chars)
+        
+        if is_regex:
+            # Используем regex-поиск по всему содержимому
+            try:
+                return bool(re.search(pattern, self.content, re.IGNORECASE))
+            except re.error:
+                # Если паттерн некорректен, пробуем простой поиск
+                return pattern.lower() in self.content_lower
+        else:
+            # Простой поиск подстроки
+            return pattern.lower() in self.content_lower
+
+    def _normalize_model_name(self, model: str) -> str:
+        """
+        Нормализует имя модели, преобразуя имена образов IOS в названия моделей.
+        
+        Например:
+        - cat4500e-lanbase-mz → Catalyst 4500-E
+        - cat3750-lanbase → Catalyst 3750
+        - CISCO2951/K9 → Cisco 2951
+        - CISCO1941/K9 → Cisco 1941
+        """
+        if model == "unknown":
+            return model
+            
+        model_lower = model.lower()
+        
+        # Словарь преобразований имен образов в модели
+        ios_image_to_model = {
+            "cat4500e": "Catalyst 4500-E",
+            "cat4500": "Catalyst 4500",
+            "cat3750": "Catalyst 3750",
+            "cat3650": "Catalyst 3650",
+            "cat3560": "Catalyst 3560",
+            "cat2960": "Catalyst 2960",
+            "cat9300": "Catalyst 9300",
+            "cat9200": "Catalyst 9200",
+        }
+        
+        # Проверяем, начинается ли имя модели с известного префикса
+        for image_prefix, model_name in ios_image_to_model.items():
+            if model_lower.startswith(image_prefix):
+                return model_name
+        
+        # Нормализация моделей ISR (CISCO2951/K9 → Cisco 2951, CISCO2951K → Cisco 2951, CISCO861-PCI-K9 → Cisco 861)
+        isar_match = re.match(r'^cisco(\d+)(?:[/-]?k9|[a-z\-]*-k9|k)?$', model_lower)
+        if isar_match:
+            return f"Cisco {isar_match.group(1)}"
+                
+        return model
 
     def _infer_type_by_features(self, type_rules: List[Dict]) -> str:
         """
@@ -380,7 +447,35 @@ class NetworkDevice:
         else:
             self.interface_status = {}
 
-        # Этап 11: Добавление BGP local адресов в routing_networks
+        # Этап 11: Извлечение StackWise информации
+        stackwise_rules = pattern.get("stackwise_extraction_rules", {})
+        if stackwise_rules.get("enabled"):
+            self.stackwise_info = self._extract_stackwise_info(stackwise_rules)
+        else:
+            self.stackwise_info = {}
+
+        # Этап 12: Извлечение QoS информации
+        qos_rules = pattern.get("qos_extraction_rules", {})
+        if qos_rules.get("enabled"):
+            self.qos_info = self._extract_qos_info(qos_rules)
+        else:
+            self.qos_info = {}
+
+        # Этап 13: Извлечение Power информации
+        power_rules = pattern.get("power_extraction_rules", {})
+        if power_rules.get("enabled"):
+            self.power_info = self._extract_power_info(power_rules)
+        else:
+            self.power_info = {}
+
+        # Этап 14: Извлечение UDLD информации
+        udld_rules = pattern.get("udld_extraction_rules", {})
+        if udld_rules.get("enabled"):
+            self.udld_info = self._extract_udld_info(udld_rules)
+        else:
+            self.udld_info = {}
+
+        # Этап 15: Добавление BGP local адресов в routing_networks
         if hasattr(self, 'bgp_info') and self.bgp_info.get('local_addresses'):
             for local_ip in self.bgp_info['local_addresses']:
                 # Добавляем как /32 сеть
@@ -914,6 +1009,104 @@ class NetworkDevice:
 
         return result
 
+    def _extract_stackwise_info(self, rules: Dict) -> Dict[str, Any]:
+        """Извлекает информацию о StackWise конфигурации."""
+        result = {
+            "enabled": False,
+            "members": [],
+            "system_mtu": None
+        }
+
+        for line in self.content_lines:
+            # Switch provision
+            if rules.get("switch_provision_pattern"):
+                match = re.search(rules["switch_provision_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["enabled"] = True
+                    switch_num = match.group(1)
+                    model = match.group(2)
+                    result["members"].append({
+                        "switch_number": switch_num,
+                        "model": model
+                    })
+
+            # System MTU
+            if rules.get("system_mtu_pattern"):
+                match = re.search(rules["system_mtu_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["system_mtu"] = match.group(1)
+
+        return result
+
+    def _extract_qos_info(self, rules: Dict) -> Dict[str, Any]:
+        """Извлекает информацию о QoS конфигурации."""
+        result = {
+            "enabled": False,
+            "mls_qos": False,
+            "control_packets": False,
+            "queue_config": []
+        }
+
+        for line in self.content_lines:
+            # MLS QoS
+            if rules.get("mls_qos_pattern"):
+                match = re.search(rules["mls_qos_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["enabled"] = True
+                    result["mls_qos"] = True
+
+            # QoS control packets
+            if rules.get("qos_control_packets_pattern"):
+                match = re.search(rules["qos_control_packets_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["enabled"] = True
+                    result["control_packets"] = True
+
+        return result
+
+    def _extract_power_info(self, rules: Dict) -> Dict[str, Any]:
+        """Извлекает информацию о питании (PoE, redundancy)."""
+        result = {
+            "enabled": False,
+            "redundancy_mode": None,
+            "inline_power": []
+        }
+
+        for line in self.content_lines:
+            # Power redundancy
+            if rules.get("power_redundancy_pattern"):
+                match = re.search(rules["power_redundancy_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["enabled"] = True
+                    result["redundancy_mode"] = match.group(1)
+
+        return result
+
+    def _extract_udld_info(self, rules: Dict) -> Dict[str, Any]:
+        """Извлекает информацию о UDLD конфигурации."""
+        result = {
+            "enabled": False,
+            "aggressive": False,
+            "errdisable_recovery": False
+        }
+
+        for line in self.content_lines:
+            # UDLD aggressive
+            if rules.get("udld_aggressive_pattern"):
+                match = re.search(rules["udld_aggressive_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["enabled"] = True
+                    result["aggressive"] = True
+
+            # Errdisable recovery UDLD
+            if rules.get("errdisable_udld_pattern"):
+                match = re.search(rules["errdisable_udld_pattern"], line, re.IGNORECASE)
+                if match:
+                    result["enabled"] = True
+                    result["errdisable_recovery"] = True
+
+        return result
+
     def _extract_routing_paths(self, rules: Dict) -> List[Dict[str, Any]]:
         """Извлекает маршруты из конфигурации на основе правил из шаблона.
         
@@ -1227,7 +1420,11 @@ class NetworkDevice:
             "vrf_info": getattr(self, 'vrf_info', {}),
             "ospf_info": getattr(self, 'ospf_info', {}),
             "lldp_info": getattr(self, 'lldp_info', {}),
-            "interface_status": getattr(self, 'interface_status', {})
+            "interface_status": getattr(self, 'interface_status', {}),
+            "stackwise_info": getattr(self, 'stackwise_info', {}),
+            "qos_info": getattr(self, 'qos_info', {}),
+            "power_info": getattr(self, 'power_info', {}),
+            "udld_info": getattr(self, 'udld_info', {})
         }
 
 

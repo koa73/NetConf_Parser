@@ -1,17 +1,14 @@
 {
   "vendor": "D-Link",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Шаблон для коммутаторов D-Link (MES3300, MES3710P, NIS3500 серии)",
-  
+
   "vendor_signatures": [
     "loopback-detection enable",
-    "spanning-tree portfast",
     "spanning-tree guard root",
     "spanning-tree bpdu filtering",
     "spanning-tree restricted-tcn",
     "snmp-server engineID local",
-    "switchport access vlan",
-    "switchport trunk allowed vlan",
     "Active-image: flash://system/images/",
     "MES3300",
     "MES3710P",
