@@ -161,11 +161,6 @@
       "model": "Cisco ISR"
     },
     {
-      "description": "Cisco ISR (ip rcmd без aaa)",
-      "conditions": {"all": ["ip rcmd remote-host"]},
-      "model": "Cisco ISR"
-    },
-    {
       "description": "Cisco ISR (boot-start-marker + ip cef)",
       "conditions": {"all": ["boot-start-marker", "ip cef"]},
       "model": "Cisco ISR"
@@ -174,6 +169,11 @@
       "description": "Cisco Aironet AP (dot11 ssid + Dot11Radio)",
       "conditions": {"all": ["dot11 ssid", "interface Dot11Radio"]},
       "model": "Cisco Aironet AP"
+    },
+    {
+      "description": "Cisco ASA Firewall (по типу устройства)",
+      "conditions": {"all": ["nameif", "security-level"]},
+      "model": "ASA Firewall"
     },
     {
       "description": "Cisco 800/1900/2900 ISR (vrf + ip rcmd)",
@@ -281,6 +281,12 @@
       "any": ["voice-card", "dial-peer voice", "voice service voip", "vpdn enable"],
       "type": "router",
       "score": 85
+    },
+    {
+      "description": "Cisco Router (NAT features)",
+      "all": ["ip nat", "ip inspect"],
+      "type": "router",
+      "score": 90
     },
     {
       "description": "Cisco Router",

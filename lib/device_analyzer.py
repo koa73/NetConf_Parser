@@ -137,8 +137,13 @@ class NetworkDevice:
     def _extract_model_with_fallback(self, patterns: List[Dict], vendor: str) -> str:
         """Извлекает модель с fallback-логикой из шаблона JSON."""
         model = self._extract_with_pattern(patterns)
-        
-        # Fallback-логика теперь определяется в JSON-шаблонах через model_fallback_rules
+
+        # Если модель извлечена паттернами, нормализуем и возвращаем её
+        if model != "unknown":
+            normalized_model = self._normalize_model_name(model)
+            return normalized_model
+
+        # Fallback-логика применяется только если модель не была извлечена паттернами
         # Ищем шаблон для текущего вендора и применяем fallback-правила
         vendor_pattern = next((p for p in self.vendor_patterns if p["vendor"] == vendor), None)
         if vendor_pattern and "model_fallback_rules" in vendor_pattern:
@@ -162,14 +167,7 @@ class NetworkDevice:
                 if matched:
                     return rule.get("model", "unknown")
 
-        # Если модель не извлечена, возвращаем unknown
-        if model == "unknown":
-            return model
-
-        # Если модель извлечена, нормализуем её
-        # (например, cat4500e-lanbase-mz → Catalyst 4500-E, CISCO2951/K9 → Cisco 2951)
-        normalized_model = self._normalize_model_name(model)
-        return normalized_model
+        return "unknown"
 
     def _check_condition_pattern(self, pattern: str) -> bool:
         """
@@ -230,6 +228,12 @@ class NetworkDevice:
         isar_match = re.match(r'^cisco(\d+)(?:[/-]?k9|[a-z\-]*-k9|k)?$', model_lower)
         if isar_match:
             return f"Cisco {isar_match.group(1)}"
+        
+        # Нормализация моделей ASA (Ethernet0/0 → ASA 5505, GigabitEthernet0/0 → ASA 5500-X)
+        if model_lower.startswith('ethernet'):
+            return "ASA 5505"
+        if model_lower.startswith('gigabitethernet'):
+            return "ASA 5500-X"
                 
         return model
 

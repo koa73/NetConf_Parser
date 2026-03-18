@@ -23,7 +23,6 @@
   ],
 
   "model_patterns": [
-    {"pattern": "^hostname\\s+(\\S+)", "group": 1, "priority": 50},
     {"pattern": "^interface (GigabitEthernet\\d+/\\d+)", "group": 1, "priority": 40},
     {"pattern": "^interface (Ethernet\\d+/\\d+)", "group": 1, "priority": 30}
   ],
