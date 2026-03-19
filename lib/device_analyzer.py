@@ -229,6 +229,19 @@ class NetworkDevice:
         if isar_match:
             return f"Cisco {isar_match.group(1)}"
         
+        # Нормализация моделей из boot system (c2800, c2801, c3800 и т.д.)
+        boot_match = re.match(r'^c(\d+)$', model_lower)
+        if boot_match:
+            num = boot_match.group(1)
+            if num.startswith('28') or num.startswith('38'):
+                return f"Cisco {num[0]}800 ISR"
+            elif num.startswith('29') or num.startswith('39'):
+                return f"Cisco {num[0]}900 ISR"
+            elif num.startswith('8'):
+                return f"Cisco {num} Series"
+            elif num.startswith('19') or num.startswith('29') or num.startswith('39'):
+                return f"Cisco {num} ISR"
+        
         # Нормализация моделей ASA (Ethernet0/0 → ASA 5505, GigabitEthernet0/0 → ASA 5500-X)
         if model_lower.startswith('ethernet'):
             return "ASA 5505"

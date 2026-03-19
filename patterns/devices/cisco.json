@@ -38,11 +38,9 @@
   
   "name_patterns": [
     {"pattern": "^hostname\\s+([\\w\\-\\.]+)", "group": 1, "priority": 100},
-    {"pattern": "^switchname\\s+([\\w\\-\\.]+)", "group": 1, "priority": 90},
-    {"pattern": "^(\\S+)#show\\s+version", "group": 1, "priority": 80},
-    {"pattern": "^(\\S+)#", "group": 1, "priority": 70}
+    {"pattern": "^switchname\\s+([\\w\\-\\.]+)", "group": 1, "priority": 90}
   ],
-  
+
   "model_patterns": [
     {"pattern": "^cisco\\s+([\\w\\-]+)\\s+\\([^)]+\\)\\s+processor", "group": 1, "priority": 100},
     {"pattern": "^Model Number\\s*:\\s*([\\w\\-]+)", "group": 1, "priority": 95},
@@ -50,11 +48,11 @@
     {"pattern": "^\\s*license udi pid (C[\\d]+[A-Z\\-]*)(?:\\s|$)", "group": 1, "priority": 92},
     {"pattern": "^\\s*license udi pid (C3900-[A-Z\\d]+)", "group": 1, "priority": 92},
     {"pattern": "^switch\\s+\\d+\\s+provision\\s+(ws-c[\\w\\-]+)", "group": 1, "priority": 90},
-    {"pattern": "^boot system flash \\S+:(c[23456789]\\d+[a-z\\-]*)", "group": 1, "priority": 88},
+    {"pattern": "^boot system flash:?\\s*\\S*:(c[23456789]\\d+)", "group": 1, "priority": 88},
     {"pattern": "^\\s*Model\\s+Ports\\s+Model", "group": 0, "fallback_pattern": "^\\*?\\s*\\d+\\s+\\d+\\s+([\\w\\-]+)", "fallback_group": 1, "priority": 85},
     {"pattern": "cisco\\s+(C[\\d]+[A-Z\\-]*)", "group": 1, "priority": 80},
     {"pattern": "(WS-C[\\d]+[A-Z\\-]*)", "group": 1, "priority": 80},
-    {"pattern": "(C9[\\d]+[A-Z\\-]*)", "group": 1, "priority": 80},
+    {"pattern": "(C9[56][0-9]{3}[A-Z\\-]*)", "group": 1, "priority": 80},
     {"pattern": "(Nexus\\s*\\d+)", "group": 1, "priority": 75},
     {"pattern": "(ASA\\s*\\d+)", "group": 1, "priority": 75}
   ],
@@ -174,6 +172,16 @@
       "description": "Cisco ASA Firewall (по типу устройства)",
       "conditions": {"all": ["nameif", "security-level"]},
       "model": "ASA Firewall"
+    },
+    {
+      "description": "Catalyst 2960 (switchport без других признаков)",
+      "conditions": {"all": ["switchport", "interface FastEthernet0/"]},
+      "model": "Catalyst 2960"
+    },
+    {
+      "description": "Catalyst 3750/3560 (switchport + voice vlan)",
+      "conditions": {"all": ["switchport voice vlan", "interface FastEthernet"]},
+      "model": "Catalyst 3750/3560"
     },
     {
       "description": "Cisco 800/1900/2900 ISR (vrf + ip rcmd)",
