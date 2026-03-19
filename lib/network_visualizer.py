@@ -194,8 +194,39 @@ class NetworkVisualizer:
             if vendor and device_type:
                 # Ищем шаблон в словаре patterns
                 # patterns имеет структуру: {vendor: [{device_type: template_data}, ...]}
-                if vendor.capitalize() in patterns:
-                    vendor_patterns = patterns[vendor.capitalize()]
+                # Пробуем несколько вариантов нормализации имени вендора
+                vendor_variants = [
+                    vendor.capitalize(),           # "cisco asa" -> "Cisco asa"
+                    vendor.title(),                # "cisco asa" -> "Cisco Asa"
+                    vendor.replace('_', ' ').title().replace(' ', '_'),  # "hpe_aruba" -> "Hpe_Aruba"
+                ]
+                
+                # Для вендоров с подчёркиванием типа "hpe_aruba" пробуем разные варианты регистра
+                if '_' in vendor:
+                    parts = vendor.split('_')
+                    # Вариант: Hpe_Aruba
+                    camel_case = parts[0].capitalize() + '_' + '_'.join(p.capitalize() for p in parts[1:])
+                    vendor_variants.append(camel_case)
+                    # Вариант: HPE_Aruba (первая часть заглавными, если она короткая - аббревиатура)
+                    if len(parts[0]) <= 3:
+                        abbr_case = parts[0].upper() + '_' + '_'.join(p.capitalize() for p in parts[1:])
+                        vendor_variants.append(abbr_case)
+                
+                # Для вендоров с пробелами типа "cisco asa" пробуем первое слово
+                if ' ' in vendor:
+                    vendor_variants.append(vendor.replace('_', ' ').split()[0].capitalize())
+                    # Дополнительно: для вендоров с пробелами типа "palo alto" пробуем "Palo_Alto"
+                    underscore_variant = '_'.join(word.capitalize() for word in vendor.split())
+                    vendor_variants.append(underscore_variant)
+                
+                vendor_key = None
+                for variant in vendor_variants:
+                    if variant in patterns:
+                        vendor_key = variant
+                        break
+                
+                if vendor_key:
+                    vendor_patterns = patterns[vendor_key]
 
                     # Ищем шаблон для конкретного типа устройства
                     for pattern in vendor_patterns:
@@ -212,7 +243,7 @@ class NetworkVisualizer:
                         else:
                             continue
                         break
-                    
+
                     # Если шаблон не найден, используем первый доступный шаблон вендора
                     if device_name not in device_list:
                         for pattern in vendor_patterns:
