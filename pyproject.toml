@@ -26,7 +26,8 @@ dependencies = [
 
 [project.scripts]
 # Точка запуска. Чтобы это работало, внутри main.py код должен быть обернут в функцию start()
-netconf-parser = "main:start"
+netconf-parser = "main:main"
+
 
 [tool.hatch.build.targets.wheel]
 packages = ["lib", "patterns", "main.py"]
@@ -34,4 +35,5 @@ packages = ["lib", "patterns", "main.py"]
 [project.urls]
 Homepage = "https://github.com/koa73/NetConf_Parser"
 Issues = "https://github.com"
+
 

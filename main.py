@@ -1,4 +1,5 @@
 import os
+import sys
 from lib.device_analyzer import *
 from lib.network_visualizer import NetworkVisualizer
 from lib.seaf_converter import DrawioConverter
