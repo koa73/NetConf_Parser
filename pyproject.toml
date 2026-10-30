@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "netconf-parser"
+version = "0.1.0"
+description = "Система анализа конфигураций сетевого оборудования для автоматического построения топологий сети и конвертации в формат SEAF (System Enterprise Architecture Framework)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+  { name="Kutsenko Oleg", email="koa73@bk.ru" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: System :: Networking",
+    "Intended Audience :: System Administrators",
+]
+dependencies = [
+    "PyYAML>=6.0",
+    "N2G>=0.2.0",
+]
+
+[project.scripts]
+# Точка запуска. Чтобы это работало, внутри main.py код должен быть обернут в функцию start()
+netconf-parser = "main:start"
+
+[tool.hatch.build.targets.wheel]
+packages = ["lib", "patterns", "main.py"]
+
+[project.urls]
+Homepage = "https://github.com/koa73/NetConf_Parser"
+Issues = "https://github.com"
+
